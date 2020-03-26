@@ -3,6 +3,8 @@ from PIL import Image,ImageTk
 from tkinter import ttk
 import logging
 from tkinter import filedialog as tkFileDialog
+#from mininet.util import netParse,ipAdd
+from functools import partial
 logging.basicConfig(level=logging.INFO)
 import os
 import json
@@ -29,19 +31,22 @@ class Interface():
         self.list_buttons={}
         self.buttons_canevas={}
         self.links={}
+        self.itemToName={}
         self.liens=[]
         self.switchOptions={}
         self.hostOptions={}
+        self.controllerOptions={}
         self.coordonnees={"i0":0,"j0":0,"i1":0,"j1":0}
         self.create_menu_bar(window)
         self.widgetToItem={}
         self.itemToWidget={}
         self.source={}
         self.nameToItem={}
+        self.net=None
         #self.dest={}
         self.canvas=self.create_canvas(window)
-        self.elements=['Switch','Cursor','Host','Link','LegacyRouter','LegacySwitch']
-        self.nodePref = {'Switch':'s','Host':'h','LegacyRouter':'r','LegacySwitch':'s'}
+        self.elements=['Switch','Host','Link','LegacyRouter','LegacySwitch','Controller']
+        self.nodePref = {'Switch':'s','Host':'h','LegacyRouter':'r','LegacySwitch':'s','Controller':'c'}
         self.images=self.netImages()
         self.create_buttons(window)
         #self.make_draggable()
@@ -104,7 +109,6 @@ class Interface():
         if self.activeButton == None:
             self.list_buttons[nodeName].config(relief='sunken')
             self.activeButton=nodeName
-            #print(self.activeButton)
         else:
             self.list_buttons[self.activeButton].config(relief="raised")
             self.list_buttons[nodeName].config(relief="sunken")
@@ -112,7 +116,7 @@ class Interface():
             #print(self.activeButton)
 
     def nvTopology(self):
-        print("buttons_canevas:"+str(self.buttons_canevas))
+        #print("buttons_canevas:"+str(self.buttons_canevas))
         for bouton in self.buttons_canevas.values():
             item=self.widgetToItem[bouton]
             self.canvas.delete(item)
@@ -129,6 +133,8 @@ class Interface():
         self.switchOptions={}
         self.hostOptions={}
         self.nameToItem={}
+        self.controllerOptions={}
+        self.itemToName={}
 
     def selectItem(self,item):
         self.lastSelection=self.selection
@@ -163,11 +169,28 @@ class Interface():
          widget.bind("<Button-3>",self.popup_host)
          widget.bind("<ButtonRelease-1>",self.release)
 
+    def make_draggable_controller(self,widget):
+         widget.bind("<Button-1>", self.click)
+         widget.bind("<B1-Motion>", self.drag)
+         widget.bind("<Button-3>",self.popup_controller)
+         widget.bind("<ButtonRelease-1>",self.release)
+
     def make_draggable_switch(self,widget):
         widget.bind("<Button-1>", self.click)
         widget.bind("<B1-Motion>", self.drag)
         widget.bind("<Button-3>",self.popup_switch)
         widget.bind("<ButtonRelease-1>",self.release)
+
+    def make_draggable_legacySwitch(self,widget):
+        widget.bind("<Button-1>", self.click)
+        widget.bind("<B1-Motion>", self.drag)
+        widget.bind("<ButtonRelease-1>",self.release)
+
+    def make_draggable_legacyRouter(self,widget):
+        widget.bind("<Button-1>", self.click)
+        widget.bind("<B1-Motion>", self.drag)
+        widget.bind("<ButtonRelease-1>",self.release)
+
 
     def click(self,event):
         if (self.activeButton == "Link"):
@@ -215,6 +238,13 @@ class Interface():
         popup_menu.add_command(label="Host Properties",command=self.hostProperties)
         popup_menu.post(event.x_root,event.y_root)
 
+    def popup_controller(self,event):
+        item=event.widget
+        self.selectedNode=event.widget
+        popup_menu=Menu(self.canvas,tearoff=0)
+        popup_menu.add_command(label="Controller Properties",command=self.controllerProperties)
+        popup_menu.post(event.x_root,event.y_root)
+
     def popup_switch(self,event):
         item=event.widget
         self.selectedNode=event.widget
@@ -230,23 +260,61 @@ class Interface():
     def changeCPU(self,*args):
         hostEntries['sched']=varCPU.get()
 
+    def addVLANInterface(self):
+        listbox3.insert(END,content_vlan.get())
+        listbox4.insert(END,content_vlan1.get())
+        vlanEntries.append((content_vlan.get(),content_vlan1.get()))
+
+    def addExternalInterface(self):
+        listbox5.insert(END,content_external.get())
+        externalEntries.append(content_external.get())
+
+    def addDirectory(self):
+        listbox10.insert(END,content_directory.get())
+        listbox11.insert(END,content_directory1.get())
+        directoryEntries.append((content_directory.get(),content_directory1.get()))
+
     def hostProperties(self):
         Options=['host','cfs','rt']
         global hostEntries
         hostEntries={}
+        hostEntries['sched']=""
         global namehost
         namehost=StringVar()
         global varCPU
         varCPU=StringVar()
         global content_vlan
         content_vlan=StringVar()
+        global content_vlan1
+        content_vlan1=StringVar()
+        global listbox3
+        global listbox4
+        global listbox5
+        global content_external
+        global content_directory
+        global content_directory1
+        content_directory=StringVar()
+        content_directory1=StringVar()
+        global listbox10
+        global listbox11
+        content_external=StringVar()
+        global vlanEntries
+        vlanEntries=[]
+        global externalEntries
+        externalEntries=[]
+        global directoryEntries
+        directoryEntries=[]
         fen = Toplevel()
         fen.geometry('500x500')
         nb = ttk.Notebook(fen)
         frame1=ttk.Frame(nb)
         frame2=ttk.Frame(nb)
+        frame5=ttk.Frame(nb)
+        frame6=ttk.Frame(nb)
         nb.add(frame1,text="Properties")
         nb.add(frame2,text="VLAN Interfaces")
+        nb.add(frame5,text="External Interfaces")
+        nb.add(frame6,text="Private Directories")
         nb.pack(fill="both",expand="yes")
 
         #hostname
@@ -308,23 +376,113 @@ class Interface():
         bouton2=Button(frame1,text="Cancel",width=8,height=2,command=lambda : fen.destroy())
         bouton2.place(x=100,y=400)
 
-        #Frame 2
-        label_8=Label(frame2,text="VLAN Interface : ",width=20,font=("bold",10))
-        label_8.place(x=20,y=5)
-        bouton3=Button(frame2,text="Add",command=self.addVLANInterface)
+        #Frame 2 VLAN INTERFACE
+        label_8=Label(frame2,text="VLAN Interface:",width=20,font=("bold",10))
+        label_8.place(x=50,y=10)
+        bouton3=Button(frame2,text='Add',command= self.addVLANInterface,width=5,height=1)
+        bouton3.place(x=200,y=10)
 
-        frame3=Frame(frame2, width=170, height=320) #background
-        frame3.place(x=320,y=80)
-        entry_11=Entry(frame3,textvariable=content_vlan)
-        entry_11.pack()
+        frame=Frame(frame2,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=400,height=300,bd=0)
+        frame.place(x=50,y=50)
+        frame3 = Frame(frame, highlightbackground="black", highlightcolor="black", highlightthickness=1, width=200, height=20, bd= 0)
+        frame3.place(x=20,y=10)
+
+        label_9=Label(frame3,text="IP Address",width=20)
+        label_9.pack()
+        entry_9=Entry(frame3,textvariable=content_vlan)
+        entry_9.pack()
+
+        frame4 = Frame(frame, highlightbackground="black", highlightcolor="black", highlightthickness=1, width=200, height=20, bd= 0)
+        frame4.place(x=180,y=10)
+        label_10=Label(frame4,text="VLAN ID",width=20)
+        label_10.pack()
+        entry_10=Entry(frame4,textvariable=content_vlan1)
+        entry_10.pack()
+
         scroll= Scrollbar(frame3)
         scroll.pack(side=RIGHT,fill=Y)
         listbox3=Listbox(frame3,yscrollcommand=scroll.set)
         listbox3.pack()
         scroll.config(command=listbox3.yview)
 
-    def addVLANInterface():
-        listbox.insert(END,content.get())
+        scroll= Scrollbar(frame4)
+        scroll.pack(side=RIGHT,fill=Y)
+        listbox4=Listbox(frame4,yscrollcommand=scroll.set)
+        listbox4.pack()
+        scroll.config(command=listbox4.yview)
+
+        #Frame5  External Interfaces
+
+        label12=Label(frame5,text="External Interface :")
+        label12.place(x=1,y=10)
+        bouton12=Button(frame5,text='Add',command=self.addExternalInterface)
+        bouton12.place(x=130,y=5)
+        frame12=Frame(frame5,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=250,height=300,bd=0)
+        frame12.place(x=1,y=50)
+        frame13=Frame(frame12,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=200,height=20,bd=0)
+        frame13.place(x=1,y=10)
+        label13=Label(frame13,text="Interface Name")
+        label13.pack()
+        entry13=Entry(frame13,textvariable=content_external)
+        entry13.pack()
+        frame14=Frame(frame12,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=200,height=300,bd=0)
+        frame14.place(x=1,y=80)
+
+        scroll= Scrollbar(frame14)
+        scroll.pack(side=RIGHT,fill=Y)
+        listbox5=Listbox(frame14,yscrollcommand=scroll.set)
+        listbox5.pack()
+        scroll.config(command=listbox5.yview)
+
+        bouton11=Button(frame2,text="OK",width=10,height=2)
+        bouton11.place(x=150,y=380)
+        bouton12=Button(frame2,text="Cancel",command=lambda:fen.destroy(),width=10,height=2)
+        bouton12.place(x=260,y=380)
+
+        bouton13=Button(frame5,text="OK",width=10,height=2)
+        bouton13.place(x=10,y=380)
+        bouton14=Button(frame5,text="Cancel",command=lambda:fen.destroy(),width=10,height=2)
+        bouton14.place(x=120,y=380)
+
+        bouton15=Button(frame6,text="OK",width=10,height=2)
+        bouton15.place(x=150,y=380)
+        bouton16=Button(frame6,text="Cancel",command=lambda:fen.destroy(),width=10,height=2)
+        bouton16.place(x=260,y=380)
+
+        #frame 6 PRIVATE DIRECTORIES
+        label_16=Label(frame6,text="Private Directory:",width=20,font=("bold",10))
+        label_16.place(x=50,y=10)
+        bouton11=Button(frame6,text='Add',command= self.addDirectory,width=5,height=1)
+        bouton11.place(x=200,y=10)
+
+        frame7=Frame(frame6,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=400,height=300,bd=0)
+        frame7.place(x=50,y=50)
+        frame8 = Frame(frame7, highlightbackground="black", highlightcolor="black", highlightthickness=1, width=200, height=20, bd= 0)
+        frame8.place(x=20,y=10)
+
+        label_17=Label(frame8,text="Mount",width=20)
+        label_17.pack()
+        entry_20=Entry(frame8,textvariable=content_directory)
+        entry_20.pack()
+
+        frame9 = Frame(frame7, highlightbackground="black", highlightcolor="black", highlightthickness=1, width=200, height=20, bd= 0)
+        frame9.place(x=180,y=10)
+        label_10=Label(frame9,text="Persistent Directory",width=20)
+        label_10.pack()
+        entry_21=Entry(frame9,textvariable=content_directory1)
+        entry_21.pack()
+
+        scroll= Scrollbar(frame8)
+        scroll.pack(side=RIGHT,fill=Y)
+        listbox10=Listbox(frame8,yscrollcommand=scroll.set)
+        listbox10.pack()
+        scroll.config(command=listbox10.yview)
+
+        scroll= Scrollbar(frame9)
+        scroll.pack(side=RIGHT,fill=Y)
+        listbox11=Listbox(frame9,yscrollcommand=scroll.set)
+        listbox11.pack()
+        scroll.config(command=listbox11.yview)
 
     def logInformationsHost(self):
         newhostoptions={}
@@ -336,8 +494,88 @@ class Interface():
         newhostoptions['startCommand']=hostEntries['start'].get()
         newhostoptions['stopCommand']=hostEntries['stop'].get()
         newhostoptions['sched']=hostEntries['sched']
+        newhostoptions['externalInterfaces']=externalEntries
+        newhostoptions['privateDirectory']=directoryEntries
+        newhostoptions['vlanInterfaces']=vlanEntries
         self.hostOptions[self.selectedNode]['options']=newhostoptions
         logging.info('New host details for ' + newhostoptions['hostname'] + '=' + str(newhostoptions) + '\n')
+
+    def logInformationsController(self):
+        newcontrolleroptions={}
+        newcontrolleroptions['hostname']=self.controllerOptions[self.selectedNode]['hostname']
+        newcontrolleroptions['remotePort']=listProperties['remotePort'].get()
+        newcontrolleroptions['remoteIP']=listProperties['remoteIP'].get()
+        newcontrolleroptions['controllerType']=listProperties['controllerType']
+        newcontrolleroptions['controllerProtocol']=listProperties['controllerProtocol']
+        self.controllerOptions[self.selectedNode]['options']=newcontrolleroptions
+        logging.info('New controller details for' + newcontrolleroptions['hostname'] + '=' + str(newcontrolleroptions) + '\n')
+
+    def changeControllerType(self,*args):
+        listProperties['controllerType']=var25.get()
+
+    def changeProtocol(self,*args):
+        listProperties['controllerProtocol']=var26.get()
+
+    def controllerProperties(self):
+        root=Toplevel()
+        root.geometry('300x320')
+        global listProperties
+        listProperties={}
+        listProperties['type']=None
+        global var26
+        var26=StringVar()
+        global var25
+        var25=StringVar()
+        global name_controller
+        name_controller=StringVar()
+        global controller_port
+        controller_port=StringVar()
+        global controller_address
+        controller_address=StringVar()
+        Options=['OpenFlow Reference','Remote Controller','In-Band Controller','OVS Controller']
+        optionsProtocol=['TCP','SSL']
+
+        label1=Label(root,text='Name:')
+        label1.place(x=1,y=10)
+        name_controller.set(self.controllerOptions[self.selectedNode]['hostname'])
+        entry20=Entry(root,textvariable=name_controller)
+        entry20.place(x=120,y=10)
+        listProperties['hostname']=entry20
+
+        label2=Label(root,text='Controller Port:')
+        label2.place(x=1,y=40)
+        controller_port.set("6633")
+        entry21=Entry(root,textvariable=controller_port)
+        entry21.place(x=120,y=40)
+        listProperties['remotePort']=entry21
+
+        label3=Label(root,text='Controller Type:')
+        label3.place(x=1,y=70)
+        var25.set(Options[0])
+        var25.trace("w",self.changeControllerType)
+        dropDownMenu=OptionMenu(root,var25,Options[0],Options[1],Options[2],Options[3])
+        dropDownMenu.place(x=120,y=70)
+
+        label4=Label(root,text='Protocol:')
+        label4.place(x=1,y=100)
+        var26.set(optionsProtocol[0])
+        var26.trace("w",self.changeProtocol)
+        dropDownMenu1=OptionMenu(root,var26,optionsProtocol[0],optionsProtocol[1])
+        dropDownMenu1.place(x=120,y=110)
+
+        frame5=LabelFrame(root,text="Remote/In-Band Controller",width=280,height=60)
+        frame5.place(x=10,y=150)
+        label5=Label(frame5,text="IP Address:")
+        label5.place(x=1,y=10)
+        controller_address.set("127.0.0.1")
+        entry22=Entry(frame5,textvariable=controller_address)
+        entry22.place(x=90,y=10)
+        listProperties['remoteIP']=entry22
+
+        bouton1=Button(root,text='OK',width=5,height=1,command=self.logInformationsController)
+        bouton1.place(x=50,y=230)
+        bouton2=Button(root,text='Cancel',width=5,height=1,command=lambda:root.destroy())
+        bouton2.place(x=150,y=230)
 
     def linkProperties(self):
         global linkEntries
@@ -415,12 +653,13 @@ class Interface():
 
     def change3(self,*args):
         listVariable['switchType']=var.get()
-        print("ListVariable['switchtype']="+str(listVariable['switchType']))
+        #print("ListVariable['switchtype']="+str(listVariable['switchType']))
+
 
     def addListbox(self):
         listbox.insert(END,content.get())
         listEntries.append(content.get())
-        print("listEntries_addlistbox:"+str(listEntries))
+        #print("listEntries_addlistbox:"+str(listEntries))
 
     def switchProperties(self):
         global listEntries # contient external Interfaces
@@ -436,7 +675,7 @@ class Interface():
         var_3=IntVar()
         global var
         var=StringVar()
-        Options=["Default","Open VSwitch Kernel Mode","Indigo Virtual Switch","Underspace Switch","Underspace Switch in Namespace"]
+        Options=["Default","Open VSwitch Kernel Mode","Indigo Virtual Switch","Userspace Switch","Userspace Switch inNamespace"]
         fen = Toplevel()
         fen.geometry('500x500')
 
@@ -558,19 +797,19 @@ class Interface():
         newPrefOptions['sflow']['sflowHeader']=variables['sFlowHeader'].get()
         newPrefOptions['sflow']['sflowTarget']=variables['sFlowTarget'].get()
         newPrefOptions['sflow']['sflowSampling']=variables['sFlowSampling'].get()
-        newPrefOptions['openflowVersions']={}
-        newPrefOptions['openflowVersions']['ovsOf10']=ovsOf10.get()
-        newPrefOptions['openflowVersions']['ovsOf11']=ovsOf11.get()
-        newPrefOptions['openflowVersions']['ovsOf12']=ovsOf12.get()
-        newPrefOptions['openflowVersions']['ovsOf13']=ovsOf13.get()
+        newPrefOptions['openFlowVersions']={}
+        newPrefOptions['openFlowVersions']['ovsOf10']=ovsOf10.get()
+        newPrefOptions['openFlowVersions']['ovsOf11']=ovsOf11.get()
+        newPrefOptions['openFlowVersions']['ovsOf12']=ovsOf12.get()
+        newPrefOptions['openFlowVersions']['ovsOf13']=ovsOf13.get()
         newPrefOptions['ipBase']=variables['ipBase'].get()
         newPrefOptions['terminalType']=variables['terminalType'].get()
         newPrefOptions['switchType']=variables['switchType'].get()
-        newPrefOptions['netFlow']={}
-        newPrefOptions['netFlow']['nFlowTarget']=variables['nFlowTarget'].get()
-        newPrefOptions['netFlow']['nFlowTimeout']=variables['nFlowTimeout'].get()
-        newPrefOptions['netFlow']['nFlowAddId']=nFlowAddId.get()
-        newPrefOptions['StartCLI']=varStartCLI.get()
+        newPrefOptions['netflow']={}
+        newPrefOptions['netflow']['nFlowTarget']=variables['nFlowTarget'].get()
+        newPrefOptions['netflow']['nFlowTimeout']=variables['nFlowTimeout'].get()
+        newPrefOptions['netflow']['nFlowAddId']=nFlowAddId.get()
+        newPrefOptions['startCLI']=varStartCLI.get()
         self.preferences=newPrefOptions
         logging.info('New Prefs ' + '=' + str(newPrefOptions) + '\n')
 
@@ -756,6 +995,7 @@ class Interface():
             id1=self.canvas.create_window((x1,y1),anchor='center',window=bouton1,tags='Switch')
             self.widgetToItem[bouton1]=id1
             self.itemToWidget[id1]=bouton1
+            self.itemToName[id1]=name_switch
             self.buttons_canevas[name_switch]=bouton1
             self.make_draggable_switch(self.buttons_canevas[name_switch])
             self.nb_widget_canevas+=1
@@ -772,6 +1012,7 @@ class Interface():
             self.hostOptions[bouton2]['options']={}
             self.hostOptions[bouton2]['options']={'hostname':name_host,"nodeNum":self.hostNumber,"sched":"host"}
             id2=self.canvas.create_window((x1,y1),anchor='center',window=bouton2,tags='host')
+            self.itemToName[id2]=name_host
             self.widgetToItem[bouton2]=id2
             self.itemToWidget[id2]=bouton2
             self.buttons_canevas[name_host]=bouton2
@@ -779,9 +1020,41 @@ class Interface():
             self.nb_widget_canevas+=1
             self.list_buttons['Host'].config(relief="raised")
             self.activeButton=None
-        # elif(self.activeButton == 'Link'):
-        #     for valeur in self.buttons_canevas.values():
-        #         self.make_draggable(self.buttons_canevas[self.activeButton])
+        elif(self.activeButton == 'Controller'):
+            bouton3=Button(self.canvas,image=self.images['Controller'])
+            self.controllerNumber+=1
+            name_controller='c'+str(self.controllerNumber)
+            id3=self.canvas.create_window((x1,y1),anchor='center',window=bouton3,tags='Controller')
+            self.controllerOptions[bouton3]={}
+            self.controllerOptions[bouton3]['numController']=self.controllerNumber
+            self.controllerOptions[bouton3]['hostname']=name_controller
+            self.controllerOptions[bouton3]['options']={'hostname':name_controller,'remotePort':6633,'controllerType':'OpenFlow Reference','controllerProtocol':'TCP','remoteIP':'127.0.0.1'}
+            self.widgetToItem[bouton3]=id3
+            self.itemToWidget[id3]=bouton3
+            self.itemToName[id3]=name_controller
+            self.buttons_canevas[name_controller]=bouton3
+            self.make_draggable_controller(self.buttons_canevas[name_controller])
+            self.nb_widget_canevas+=1
+            self.list_buttons['Controller'].config(relief="raised")
+            self.activeButton=None
+        elif(self.activeButton == 'LegacySwitch'):
+            bouton4=Button(self.canvas,image=self.images['LegacySwitch'])
+            id4=self.canvas.create_window((x1,y1),anchor='center',window=bouton4,tags='LegacySwitch')
+            self.widgetToItem[bouton4]=id4
+            self.itemToWidget[id4]=bouton4
+            self.make_draggable_legacySwitch(bouton4)
+            self.nb_widget_canevas+=1
+            self.list_buttons['LegacySwitch'].config(relief='raised')
+            self.activeButton=None
+        elif(self.activeButton == 'LegacyRouter'):
+            bouton5=Button(self.canvas,image=self.images['LegacyRouter'])
+            id5=self.canvas.create_window((x1,y1),anchor='center',window=bouton5,tags='LegacyRouter')
+            self.widgetToItem[bouton5]=id5
+            self.itemToWidget[id5]=bouton5
+            self.make_draggable_legacyRouter(bouton5)
+            self.nb_widget_canevas+=1
+            self.list_buttons['LegacySwitch'].config(relief='raised')
+            self.activeButton=None
 
     def saveTopology(self):
         fileTypes = [("Mininet Topology","*.mn"),("All Files",'*')]
@@ -796,10 +1069,10 @@ class Interface():
             widget=self.itemToWidget[item]
             if('Switch' in tag):
                 switchNum=self.switchOptions[widget]['numSwitch']
-                print('switchnum'+str(switchNum))
+                #print('switchnum'+str(switchNum))
                 switchName=self.switchOptions[widget]['nameSwitch']
                 savingSwitch={'number':str(switchNum),'x':str(x),'y':str(y),'opts':self.switchOptions[widget]['options']}
-                print('switchoptions:'+str(savingSwitch['opts']))
+                #print('switchoptions:'+str(savingSwitch['opts']))
                 savingSwitches.append(savingSwitch)
             elif('host' in tag):
                 hostNum=self.hostOptions[widget]['numhost']
@@ -925,6 +1198,8 @@ class Interface():
             self.links[self.link]['src']=self.switchOptions[w]['nameSwitch']
         elif('host' in tags):
             self.links[self.link]['src']=self.hostOptions[w]['hostname']
+        elif('Controller' in tags):
+            self.links[self.link]['src']=self.controllerOptions[w]['hostname']
         self.links[self.link]['options']={}
         self.liens.append(self.link)
         self.DataLinkBindings()
@@ -944,17 +1219,33 @@ class Interface():
         self.canvas.tag_bind(self.link,'<Leave>',linkColorLeave)
         self.canvas.tag_bind(self.link,'<Button-3>',self.popup_link)
 
+
     def dragLink(self,event):
         b = self.canvasx( event.x_root ) # coordonnées d'arrivée
         n = self.canvasy( event.y_root ) # coordonnées d'arrivée
         self.canvas.coords(self.link,self.coordonnees["i0"],self.coordonnees["j0"],b,n)
 
+    def ControlLinkBindings( self ):
+
+        def linkColorEntry1(_event,link=self.link ):
+            self.selectedLink=link
+            self.canvas.itemconfig(link,fill='blue')
+
+        def linkColorLeave1( _event,link=self.link):
+            self.canvas.itemconfig( link, fill='red' )
+
+        self.canvas.tag_bind(self.link,'<Enter>',linkColorEntry1)
+        self.canvas.tag_bind(self.link,'<Leave>',linkColorLeave1)
+
     def finishLink(self,event):
         #we drag from the widget , we use root coordonnees
         src = self.linkWidget
+        srcItem=self.widgetToItem[src]
         x = self.canvasx(event.x_root) # coordonnées d'arrivée du lien
         y= self.canvasy(event.y_root) # coordonnées d'arrivée du lien
         target = self.findObject(x,y) # item du widget d'arrivée
+        srctags=self.canvas.gettags(srcItem)
+        desttags=self.canvas.gettags(target)
         dest1=self.itemToWidget.get(target,None) #widget correspondant à l'item se trouvant à l'arrivée
         if (dest1 != None):
             tags=self.canvas.gettags(target)
@@ -962,25 +1253,160 @@ class Interface():
                 self.links[self.link]['dest']=self.switchOptions[dest1]['nameSwitch']
             elif('host' in tags):
                 self.links[self.link]['dest']=self.hostOptions[dest1]['hostname']
-            #self.dest[dest1]=self.link
-            #self.createDataLinkBindings()
-            self.link=None
-            self.linkWidget=None
-        elif(dest1 == None):
+            elif('host' in tags):
+                self.links[self.link]['dest']=self.controllerOptions[dest1]['hostname']
+        if(dest1 == None):
             self.canvas.delete( self.link )
             del self.source[src]
             self.link=None
             self.linkWidget=None
-        # elif (dest1 == src or dest1 in self.source.values()):
-        #     self.canvas.delete( self.link )
-        #     del self.source[src]
-        #     del self.dest[dest1]
-        #     self.link=None
-        #     self.linkWidget=None
+        if(('host' in srctags and 'host' in desttags) or
+              ('Controller' in srctags and 'LegacyRouter' in desttags)or
+              ('LegacyRouter' in srctags and 'Controller' in desttags)or
+              ('Controller' in srctags and 'LegacySwitch' in desttags)or
+              ('LegacySwitch' in srctags and 'Controller' in desttags)or
+              ('Controller' in srctags and 'host' in desttags)or
+              ('host' in srctags and 'Controller' in desttags)or
+              ('Controller' in srctags and 'Controller' in desttags)):
+              self.canvas.delete(self.link)
+              del self.links[self.link]
+              self.link=None
+              self.linkWidget=None
+
+        # Set link type
+        linkType='data'
+        if (('Controller' in srctags and 'Switch' in desttags)or
+            ('Switch' in srctags and 'Controller' in desttags)):
+            linkType='control'
+            self.canvas.itemconfig(self.link,dash=(6, 4, 2, 4),fill='red')
+            self.ControlLinkBindings()
+        self.link=None
+        self.linkWidget=None
+
+    def build():
+        dpctl = None
+        if len(self.preferences['dpctl'])!=0:
+            dpctl = int(self.preferences['dpctl'])
+        net = Mininet(topo=None,listenPort=dpctl,build=False,ipBase=self.preferences['ipBase'] )
+
+        self.buildNodes(net)
+        net.build()
+        return net
+
+    def buildNodes(self,net):
+        logging.info("Getting Hosts and Switches.\n")
+        for item in self.widgetToItem.values():
+            tags = self.canvas.gettags(item)
+            name=self.itemToName[item]
+
+            if 'Switch' in tags:
+                options = self.switchOptions[self.itemToWidget[item]]
+                switch_options=options['options']
+                print("switch_options:"+ str(switch_options))
+
+                # Create switch class
+                switchClass = customOvs
+                switch_properties={}
+                if 'dpctl' in switch_options:
+                    switch_properties['listenPort']=int(switch_options['dpctl'])
+                if 'dpid' in opts:
+                    switch_properties['dpid']=switch_options['dpid']
+                if switch_options['switchType'] == 'default':
+                    if self.preferences['switchType'] == 'Indigo Virtual Switch':
+                        switchClass = IVSSwitch
+                    elif self.preferences['switchType'] == 'Userspace Switch':
+                        switchClass = CustomUserSwitch
+                    elif self.preferences['switchType'] == 'Userspace Switch inNamespace':
+                        switch_properties['inNamespace'] = True
+                        switchClass = CustomUserSwitch
+                    else:
+                        switchClass = customOvs
+                elif switch_options['switchType'] == 'Userspace Switch':
+                    switchClass = CustomUserSwitch
+                elif switch_options['switchType'] == 'Underspace Switch inNamespace':
+                    switchClass = CustomUserSwitch
+                    switch_properties['inNamespace'] = True
+                elif switch_options['switchType'] == 'Indigo Virtual Switch':
+                    switchClass = IVSSwitch
+                else:
+                    switchClass = customOvs
+
+                if switchClass == customOvs:
+                    # Set OpenFlow versions
+                    self.openFlowVersions = []
+                    if self.preferences['openFlowVersions']['ovsOf10'] == '1':
+                        self.openFlowVersions.append('OpenFlow10')
+                    if self.preferences['openFlowVersions']['ovsOf11'] == '1':
+                        self.openFlowVersions.append('OpenFlow11')
+                    if self.preferences['openFlowVersions']['ovsOf12'] == '1':
+                        self.openFlowVersions.append('OpenFlow12')
+                    if self.preferences['openFlowVersions']['ovsOf13'] == '1':
+                        self.openFlowVersions.append('OpenFlow13')
+                    protocolList = ",".join(self.openFlowVersions)
+                    switch_properties['protocols'] = protocolList
+                newSwitch = net.addSwitch(name,cls=switchClass,**switch_properties)
+                print("newswitch:"+newswitch)
+
+            elif 'LegacySwitch' in tags:
+                newSwitch = net.addSwitch(name,cls=LegacySwitch)
+            elif 'LegacyRouter' in tags:
+                newSwitch = net.addHost(name,cls=LegacyRouter)
+            elif 'Host' in tags:
+                options = self.hostOptions[self.itemToWidget[item]]
+                host_options=options['options']
+                ip = None
+                defaultRoute = None
+                if('defaultRoute' in host_options and len(host_options['defaultRoute'])>0):
+                    defaultRoute='via' + host_options['defaultRoute']
+                if ('ip' in host_options and len(host_options['ip'])>0):
+                    ip = host_options['ip']
+                else:
+                    nodeNum = self.hostOptions[self.itemToWidget[item]]['nodeNum']
+                    ipBaseNum, prefixLen=netParse(self.preferences['ipBase'])
+                    ip=ipAdd(i=nodeNum, prefixLen=prefixLen, ipBaseNum=ipBaseNum)
+
+                # Create correct host class
+                if 'cores' in host_options or 'cpu' in host_options:
+                    if 'privateDirectory' in host_options:
+                        hostCls=partial(CPULimitedHost,privateDirs=host_options['privateDirectory'] )
+                    else:
+                        hostCls=CPULimitedHost
+                else:
+                    if 'privateDirectory' in host_options:
+                        hostCls=partial(Host,privateDirs=host_options['privateDirectory'])
+                    else:
+                        hostCls=Host
+                debug( hostCls,'\n')
+                newHost = net.addHost(name,cls=hostCls,ip=ip,defaultRoute=defaultRoute)
+
+            elif 'Controller' in tags:
+                options = self.controllerOptions[self.itemToWidget[item]]
+                controller_options = options['options']
+
+                controllerType = controller_options['controllerType']
+                if 'controllerProtocol' in controller_options:
+                    controllerProtocol = controller_options['controllerProtocol']
+                else :
+                    controllerProtocol = 'TCP'
+                    controller_options['controllerProtocol'] = 'TCP'
+                controllerIP = controller_options['remoteIP']
+                controllerPort = controller_options['remotePort']
+
+                logging.info('Getting controller selection:' + controllerType,'\n')
+                if controllerType == 'Remote Controller':
+                    net.addController(name=name,controller=RemoteController,ip=controllerIP,protocol=controllerProtocol,port=controllerPort)
+                elif controllerType == 'In-Band Controller':
+                    net.addController(name=name,controller=InbandController,ip=controllerIP,protocol=controllerProtocol,port=controllerPort)
+                elif controllerType == 'OVS Controller':
+                    net.addController(name=name,controller=OVSController,protocol=controllerProtocol,port=controllerPort)
+                else:
+                    net.addController(name=name,controller=Controller,protocol=controllerProtocol,port=controllerPort)
+            else:
+                raise Exception( "Cannot create mystery node: " + name )
 
     def netImages(self):
         img1=PhotoImage(file="/home/user/Desktop/graph/switch.gif")
-        img2=PhotoImage(file="/home/user/Desktop/graph/cursor.png")
+        img2=PhotoImage(file="/home/user/Desktop/graph/controleur.png")
         img3=PhotoImage(file="/home/user/Desktop/graph/host.png")
         img4=PhotoImage(file="/home/user/Desktop/graph/line.png")
         img5=PhotoImage(file="/home/user/Desktop/graph/legacyRouter.png")
@@ -991,7 +1417,7 @@ class Interface():
         img4_mini=img4.subsample(4,4)
         img5_mini=img5.subsample(11,8)
         img6_mini=img6.subsample(3,3)
-        dict_images={'Switch': img1_mini,'Cursor':img2_mini,'Host':img3_mini,'Link':img4_mini,'LegacyRouter':img5_mini,'LegacySwitch':img6_mini}
+        dict_images={'Switch': img1_mini,'Controller':img2_mini,'Host':img3_mini,'Link':img4_mini,'LegacyRouter':img5_mini,'LegacySwitch':img6_mini}
         return dict_images
 
 
