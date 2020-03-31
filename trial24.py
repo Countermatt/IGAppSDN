@@ -1405,12 +1405,12 @@ class Interface():
                 raise Exception( "Cannot create mystery node: " + name )
 
     def netImages(self):
-        img1=PhotoImage(file="/home/user/Desktop/graph/switch.gif")
-        img2=PhotoImage(file="/home/user/Desktop/graph/controleur.png")
-        img3=PhotoImage(file="/home/user/Desktop/graph/host.png")
-        img4=PhotoImage(file="/home/user/Desktop/graph/line.png")
-        img5=PhotoImage(file="/home/user/Desktop/graph/legacyRouter.png")
-        img6=PhotoImage(file="/home/user/Desktop/graph/legacyswitch.png")
+        img1=PhotoImage(file="switch.gif")
+        img2=PhotoImage(file="controleur.png")
+        img3=PhotoImage(file="host.png")
+        img4=PhotoImage(file="line.png")
+        img5=PhotoImage(file="legacyRouter.png")
+        img6=PhotoImage(file="legacyswitch.png")
         img1_mini=img1.subsample(7,8)
         img2_mini=img2.subsample(3,4)
         img3_mini=img3.subsample(4,4)
