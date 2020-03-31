@@ -1,4 +1,0 @@
-#!/home/countermatt/Documents/projet_S8/IGAppSDN/python_environment/venv-IGAppSDN/bin/python
-# EASY-INSTALL-SCRIPT: 'mininet===2.3.0d6','mn'
-__requires__ = 'mininet===2.3.0d6'
-__import__('pkg_resources').run_script('mininet===2.3.0d6', 'mn')
