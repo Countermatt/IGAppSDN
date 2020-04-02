@@ -10,6 +10,7 @@ import logging
 from net import Mininet, VERSION
 #from Tkinter import filedialog as tkFileDialog
 from util import netParse,ipAdd
+from time import sleep
 from link import TCLink, Intf, Link
 from log import info
 from log import debug
@@ -30,9 +31,12 @@ from topo import SingleSwitchTopo, LinearTopo, SingleSwitchReversedTopo
 from topolib import TreeTopo
 from node import IVSSwitch
 from functools import partial
+from subprocess import call
 logging.basicConfig(level=logging.INFO)
 import os
 import json
+
+MININET_VERSION = re.sub(r'[^\d\.]', '', VERSION)
 
 #Création de classe pour le controlleur
 class InbandController( RemoteController ):
@@ -123,6 +127,7 @@ class Interface():
         self.liens=[]
         self.name_switch=[]
         self.name_host=[]
+        self.names=[]
         self.net=None
         self.switchOptions={}
         self.hostOptions={}
@@ -137,6 +142,7 @@ class Interface():
         self.hosts=[]
         self.nameToItem={}
         #self.dest={}
+        self.name_host={}
         self.canvas=self.create_canvas(window)
         self.elements=['Switch','Host','Link','LegacyRouter','LegacySwitch','Controller']
         self.nodePref = {'Switch':'s','Host':'h','LegacyRouter':'r','LegacySwitch':'s','Controller':'c'}
@@ -165,14 +171,18 @@ class Interface():
         sousmenu3=Menu(mainmenu,tearoff=0)
         sousmenu3.add_command(label="Run")
         sousmenu3.add_command(label="Stop")
-        sousmenu3.add_command(label="Show OVS Summary")
+        sousmenu3.add_command(label="Show OVS Summary",command=self.ovsShow)
         sousmenu3.add_command(label="Root Terminal",command=self.display_shell)
         mainmenu.add_cascade(label='Run',menu=sousmenu3)
 
         sousmenu4=Menu(mainmenu,tearoff=0)
         sousmenu4.add_command(label="Dump",command=self.dumpNet)
-        sousmenu4.add_command(label="ifconfig",command=self.ifconfig_test)
-        sousmenu4.add_command(label="ping all hosts",command=self.pinghosts)
+        sousmenu4.add_command(label="Ifconfig",command=self.ifconfig_test)
+        sousmenu4.add_command(label="Ping all hosts",command=self.pinghosts)
+        sousmenu4.add_command(label="Ping pair",command=self.pingpair)
+        sousmenu4.add_command(label="Iperf",command=self.iperf_test)
+        sousmenu4.add_command(label="List of Nodes",command=self.list_nodes)
+        sousmenu4.add_command(label="Nodes and links informations",command=self.node_info)
         mainmenu.add_cascade(label='Command',menu=sousmenu4)
 
         sousmenu5=Menu(mainmenu,tearoff=0)
@@ -180,7 +190,6 @@ class Interface():
         mainmenu.add_cascade(label='Help',menu=sousmenu5)
 
         window.config(menu=mainmenu)
-
 
     def create_canvas(self,window):
         #canvas = Canvas(window,width='1000',height='1000',bg='pink')
@@ -190,6 +199,16 @@ class Interface():
         #canvas.bind('<B1-Motion>',self.dragCanevas)
         #canvas.bind('<ButtonRelease-1>',self.dropCanevas)
         return canvas
+
+    def list_nodes(self):
+        root=Toplevel()
+        text1=Text(root,height=100,width=200)
+        text1.config(state="normal")
+        text1.insert(INSERT,'available nodes are : '+'\n')
+        for i in range(0,len(self.names)):
+            text1.insert(INSERT,self.names[i]+ ' ')
+        text1.config(state='disabled')
+        text1.pack()
 
     def ifconfig_test(self):
         list_result=[]
@@ -206,18 +225,137 @@ class Interface():
         text1.config(state='disabled')
         text1.pack()
 
-    # def iperf_test(self):
-    #     root=Toplevel()
-    #     text1=Text(root,height=100,width=200)
-    #     text1.config(state="normal")
-    #     firsthost=self.name_host[i]
-    #     while(i<len(self.name_host)):
-    #         if (host != firsthost):
-    #             result1,result2 = self.net.get(host,firsthost)
-    #             self.net.iperf((result1,result2))
+    def changehostname2(self,*args):
+        host_names['host0']=var_name2.get()
+        hostnodes[0]=self.name_host[host_names['host0']]
+        #print("host_nodes"+str(host_nodes)+'\n')
+
+    def changehostname3(self,*args):
+        host_names['host1']=var_name3.get()
+        hostnodes[1]=self.name_host[host_names['host1']]
+        #print("host_nodes 1 " + str(host_nodes) + '\n')
+
+    def iperf_test(self):
+
+         global host_names
+         host_names={}
+         global hostnodes
+         hostnodes=[]
+         global var_name2
+         global var_name3
+         name_hosts=()
+         for host in self.name_host.keys():
+              name_hosts=name_hosts+(str(host),)
+
+         root=Toplevel()
+         root.geometry("700x700")
+
+         # host_names contient les noms du 1er host se trouvant dans name_hists
+         host_names['host0']=name_hosts[0]
+         host_names['host1']=name_hosts[0]
+
+
+         hostnodes=[self.name_host[host_names['host0']],self.name_host[host_names['host1']]]
+
+         var_name2=StringVar()
+         var_name2.trace("w",self.changehostname2)
+
+         var_name3=StringVar()
+         var_name3.trace("w",self.changehostname3)
+
+         var_name2.set(name_hosts[0])
+         var_name3.set(name_hosts[0])
+
+         dropDownMenu=OptionMenu(root,var_name2,*name_hosts)
+         dropDownMenu.place(x=350,y=110)
+
+         dropDownMenu1=OptionMenu(root,var_name3,*name_hosts)
+         dropDownMenu1.place(x=500,y=110)
+
+         bouton = Button(root,text='OK',command=partial(self.iperff,hostnodes))
+         bouton.place(x=300,y=600)
+
+
+    def iperff( self, hosts=None, l4Type='TCP', udpBw='10M' ):
+        """Run iperf between two hosts.
+           hosts: list of hosts; if None, uses opposite hosts
+           l4Type: string, one of [ TCP, UDP ]
+           returns: results two-element array of server and client speeds"""
+        root=Toplevel()
+        text1=Text(root,height=100,width=200)
+        text1.config(state="normal")
+        if not quietRun( 'which telnet' ):
+            #error( 'Cannot find telnet in $PATH - required for iperf test' )
+            text1.insert(INSERT, 'Cannot find telnet in $PATH - required for iperf test')
+            text1.config(state='disabled')
+            text1.pack()
+            return
+        if not hosts:
+            hosts = [self.hosts[0],self.hosts[-1]]
+        else:
+            assert len(hosts) == 2
+        client, server = hosts
+        #output( '*** Iperf: testing ' + l4Type + ' bandwidth between ' )
+        text1.insert(INSERT,'*** Iperf: testing ' + l4Type + ' bandwidth between ')
+        #output( "%s and %s\n" % ( client.name, server.name ) )
+        text1.insert(INSERT,str(client.name) + ' and '+ str(server.name)+'\n')
+        server.cmd( 'killall -9 iperf' )
+        iperfArgs = 'iperf '
+        bwArgs = ''
+        if l4Type == 'UDP':
+            iperfArgs += '-u '
+            bwArgs = '-b ' + udpBw + ' '
+        elif l4Type != 'TCP':
+            raise Exception( 'Unexpected l4 type: %s' % l4Type )
+        server.sendCmd( iperfArgs + '-s', printPid=True )
+        servout = ''
+        while server.lastPid is None:
+            servout += server.monitor()
+        while 'Connected' not in client.cmd(
+            'sh -c "echo A | telnet -e A %s 5001"' % server.IP()):
+            #output('waiting for iperf to start up')
+            text1.insert(INSERT,'waiting for iperf to start up')
+            sleep(.5)
+        cliout = client.cmd( iperfArgs + '-t 5 -c ' + server.IP() + ' ' +
+                           bwArgs )
+        #debug( 'Client output: %s\n' % cliout )
+        text1.insert(INSERT,'Client output: ' + str(cliout) + '\n')
+        server.sendInt()
+        servout += server.waitOutput()
+        #debug( 'Server output: %s\n' % servout )
+        text1.insert(INSERT,'Server output: ' + str(servout) + '\n')
+        r = r'([\d\.]+ \w+/sec)'
+        m = re.findall(r,servout)
+        if m:
+            #return m[-1]
+            iperfservout=m[-1]
+        else:
+            # was: raise Exception(...)
+            #error( 'could not parse iperf output: ' + iperfOutput )
+            text1.insert(INSERT,'could not parse iperf output: ' + servout )
+            iperfservout = ''
+
+        r = r'([\d\.]+ \w+/sec)'
+        m1 = re.findall(r,cliout)
+        if m1:
+            #return m[-1]
+            iperfcliout=m1[-1]
+        else:
+            # was: raise Exception(...)
+            #error( 'could not parse iperf output: ' + iperfOutput )
+            text1.insert(INSERT,'could not parse iperf output: ' + cliout )
+            iperfcliout = ''
+        #result = [ self._parseIperf( servout ), self._parseIperf( cliout ) ]
+        result = [iperfservout,iperfservout]
+        if l4Type == 'UDP':
+            result.insert( 0, udpBw )
+        #output( '*** Results: %s\n' % result )
+        text1.insert(INSERT,'*** Results: ' +result + '\n')
+        text1.config(state='disabled')
+        text1.pack()
+        return result
 
     def pinghosts(self,hosts=None,timeout=None ):
-        # should we check if running?
         root=Toplevel()
         text1=Text(root,height=100,width=200)
         text1.config(state="normal")
@@ -310,7 +448,6 @@ class Interface():
             #print(self.activeButton)
 
     def nvTopology(self):
-        #print("buttons_canevas:"+str(self.buttons_canevas))
         for bouton in self.buttons_canevas.values():
             item=self.widgetToItem[bouton]
             self.canvas.delete(item)
@@ -327,8 +464,12 @@ class Interface():
         self.switchOptions={}
         self.hostOptions={}
         self.nameToItem={}
+        self.name_host={}
         self.controllerOptions={}
+        self.legacySwitchOptions={}
+        self.legacyRouterOptions={}
         self.itemToName={}
+        self.names=[]
 
     def selectItem(self,item):
         self.lastSelection=self.selection
@@ -356,6 +497,19 @@ class Interface():
          os.system('xterm -into %d -geometry 700x500 -sb &' % wid)
          root.mainloop()
 
+    def xterm( self, _ignore=None ):
+        "Make an xterm when a button is pressed."
+        selectedNode=self.selectedNode
+        itemNode=self.widgetToItem[selectedNode]
+        name=self.itemToName[itemNode]
+        if name not in self.net.nameToNode:
+            return
+        term = makeTerm(self.net.nameToNode[name],'Host',term=self.preferences['terminalType'])
+        if (StrictVersion(MININET_VERSION)>StrictVersion('2.0')):
+            self.net.terms += term
+        else:
+            self.net.terms.append(term)
+
     def make_draggable_host(self,widget):
          widget.bind("<Button-1>", self.click)
          widget.bind("<B1-Motion>", self.drag)
@@ -378,12 +532,13 @@ class Interface():
         widget.bind("<Button-1>", self.click)
         widget.bind("<B1-Motion>", self.drag)
         widget.bind("<ButtonRelease-1>",self.release)
+        widget.bind("<Button-3>",self.popup_legacyswitch)
 
     def make_draggable_legacyRouter(self,widget):
         widget.bind("<Button-1>", self.click)
         widget.bind("<B1-Motion>", self.drag)
         widget.bind("<ButtonRelease-1>",self.release)
-
+        widget.bind("<Button-3>",self.popup_legacyrouter)
 
     def click(self,event):
         if (self.activeButton == "Link"):
@@ -399,6 +554,7 @@ class Interface():
 
     def release(self,event):
         if (self.activeButton == "Link"):
+            #print("helloo")
             self.finishLink(event)
 
     def on_drag_start(self,event):
@@ -426,8 +582,14 @@ class Interface():
     def popup_host(self,event):
         item=event.widget
         self.selectedNode=event.widget
+        for bouton in self.list_buttons.values():
+            etat_bouton =str(bouton['state'])
+            if etat_bouton == 'disabled':
+                popup_menu=Menu(self.canvas,tearoff=0)
+                popup_menu.add_command(label="Terminal",command=self.xterm)
+                popup_menu.post(event.x_root,event.y_root)
+                return
         popup_menu=Menu(self.canvas,tearoff=0)
-        #popup_menu.add_command(label="Delete",command=item.destroy())
         popup_menu.add_command(label="Host Properties",command=self.hostProperties)
         popup_menu.post(event.x_root,event.y_root)
 
@@ -441,9 +603,38 @@ class Interface():
     def popup_switch(self,event):
         item=event.widget
         self.selectedNode=event.widget
+        for bouton in self.list_buttons.values():
+            etat_bouton =str(bouton['state'])
+            if etat_bouton == 'disabled':
+                popup_menu=Menu(self.canvas,tearoff=0)
+                popup_menu.add_command(label="List Bridge",command=self.listBridge)
+                popup_menu.post(event.x_root,event.y_root)
+                return
         popup_menu=Menu(self.canvas,tearoff=0)
         popup_menu.add_command(label="Switch Properties",command=self.switchProperties)
         popup_menu.post(event.x_root,event.y_root)
+
+    def popup_legacyswitch(self,event):
+        item=event.widget
+        self.selectedNode=event.widget
+        for bouton in self.list_buttons.values():
+            etat_bouton =str(bouton['state'])
+            if etat_bouton == 'disabled':
+                popup_menu=Menu(self.canvas,tearoff=0)
+                popup_menu.add_command(label="List Bridge",command=self.listBridge)
+                popup_menu.post(event.x_root,event.y_root)
+                return
+
+    def popup_legacyrouter(self,event):
+        item=event.widget
+        self.selectedNode=event.widget
+        for bouton in self.list_buttons.values():
+            etat_bouton =str(bouton['state'])
+            if etat_bouton == 'disabled':
+                popup_menu=Menu(self.canvas,tearoff=0)
+                popup_menu.add_command(label="Terminal",command=self.xterm)
+                popup_menu.post(event.x_root,event.y_root)
+                return
 
     def popup_link(self,event):
         for bouton in self.list_buttons.values():
@@ -458,6 +649,21 @@ class Interface():
         popup_menu=Menu(self.canvas,tearoff=0)
         popup_menu.add_command(label="Link Properties",command=self.linkProperties)
         popup_menu.post(event.x_root,event.y_root)
+
+    def listBridge( self, _ignore=None ):
+        selectedNode=self.selectedNode  #widget
+        itemNode=self.widgetToItem[selectedNode]
+        name=self.itemToName[itemNode]
+        tags = self.canvas.gettags(itemNode)
+
+        if name not in self.net.nameToNode:
+            return
+        if 'Switch' in tags or 'LegacySwitch' in tags:
+            call(["xterm -T 'Bridge Details' -sb -sl 2000 -e 'ovs-vsctl list bridge " + name + "; read -p \"Press Enter to close\"' &"], shell=True)
+
+    @staticmethod
+    def ovsShow(_ignore=None):
+        call(["xterm -T 'OVS Summary' -sb -sl 2000 -e 'ovs-vsctl show; read -p \"Press Enter to close\"' &"],shell=True)
 
     def changeCPU(self,*args):
         hostEntries['sched']=varCPU.get()
@@ -998,6 +1204,207 @@ class Interface():
         self.switchOptions[self.selectedNode]['options']=newSwitchOptions
         info('New switch details for ' + str(newSwitchOptions['hostname']) + '=' + str(newSwitchOptions) + '\n')
 
+    def changeNode(self,*args):
+        node[0]=varname.get()
+
+    def node_info(self):
+        global node
+        root=Toplevel()
+        root.geometry('500x500')
+        link_names=()
+        names = tuple(self.names)
+        for link in self.links.keys():
+            info_link=('Link between ' + str(self.links[link]['src']) + ' and ' + str(self.links[link]['dest']),)
+            link_names=link_names+info_link
+
+        nodes_links = names+link_names
+        menuwidth = len(max(nodes_links,key=len))
+        node=[names[0]]
+        global varname
+        varname=StringVar()
+        varname.set(names[0])
+        varname.trace("w",self.changeNode)
+        dropdownmenu=OptionMenu(root,varname,*nodes_links)
+        dropdownmenu.config(width=menuwidth)
+        dropdownmenu.grid()
+        dropdownmenu.place(x=150,y=40)
+        bouton = Button(root,text='OK',command=self.node_info1)
+        bouton.place(x=150,y=100)
+
+    def node_info1(self):
+        #cas switch
+        root=Toplevel()
+        text1=Text(root,height=200,width=200)
+        text1.config(state="normal")
+
+        for switch in self.switchOptions.keys():
+            item=self.widgetToItem[switch]
+            name_node=self.itemToName[item]
+            if(node[0]==name_node):
+                text1.insert(INSERT,'Switch Name : ' + self.switchOptions[switch]['options']['hostname']+'\n')
+                text1.insert(INSERT,'Switch Type : ' + self.switchOptions[switch]['options']['switchType']+'\n')
+
+                if(self.switchOptions[switch]['options']['sflow'] == 0 ):
+                    text1.insert(INSERT,'sFlow : Not Checked ' + '\n')
+                else:
+                    text1.insert(INSERT,'sFlow : Checked ' + '\n')
+
+                if(self.switchOptions[switch]['options']['netflow'] == 0 ):
+                    text1.insert(INSERT,'netFlow : Not Checked ' + '\n')
+                else:
+                    text1.insert(INSERT,'netFlow : Checked ' + '\n')
+
+                if(self.switchOptions[switch]['options']['controllers'] != [] ):
+                    text1.insert(INSERT,'Controllers : ')
+                    text1.insert(INSERT,self.switchOptions[switch]['options']['controllers'])
+                    text1.insert(INSERT,'\n')
+
+                if(self.switchOptions[switch]['options']['switchIP']!=''):
+                    text1.insert(INSERT,'IP Address : ' + self.switchOptions[switch]['options']['switchIP']+'\n')
+
+                if(self.switchOptions[switch]['options']['dpid']!=''):
+                    text1.insert(INSERT,'dpid : ' + self.switchOptions[switch]['options']['dpid']+'\n')
+
+                if(self.switchOptions[switch]['options']['dpctl']!=''):
+                    text1.insert(INSERT,'dpctl : ' + self.switchOptions[switch]['options']['dpctl']+'\n')
+
+                if(self.switchOptions[switch]['options']['startCommand']!=''):
+                    text1.insert(INSERT,'start Command : ' + self.switchOptions[switch]['options']['startCommand']+'\n')
+
+                if(self.switchOptions[switch]['options']['stopCommand']!=''):
+                    text1.insert(INSERT,'stop Command : ' + self.switchOptions[switch]['options']['stopCommand']+'\n')
+
+                if(self.switchOptions[switch]['options']['externalInterfaces'] != [] ):
+                    text1.insert(INSERT,'External Interfaces : ')
+                    text1.insert(INSERT,self.switchOptions[switch]['options']['externalInterfaces'])
+                    text1.insert(INSERT,'\n')
+
+                text1.config(state='disabled')
+                text1.pack()
+                return
+
+        #cas host
+        for host in self.hostOptions.keys():
+            item=self.widgetToItem[host]
+            name_node=self.itemToName[item]
+            if(node[0]==name_node):
+                print(self.hostOptions[host])
+                text1.insert(INSERT,'host Number : ' + str(self.hostOptions[host]['numhost'])+'\n')
+                text1.insert(INSERT,'hostname : ' + self.hostOptions[host]['hostname']+'\n')
+                text1.insert(INSERT,'Sched : ' + self.hostOptions[host]['options']['sched']+'\n')
+                print(self.hostOptions[host]['options']['cpu'])
+
+                if(self.hostOptions[host]['options']['cpu']!=''):
+                     print('we are in cpu')
+                     text1.insert(INSERT,'CPU : ' + self.hostOptions[host]['options']['cpu']+'\n')
+
+                if(self.hostOptions[host]['options']['ip']!=''):
+                    print('we are in ip')
+                    text1.insert(INSERT,'IP Address : ' + self.hostOptions[host]['options']['ip']+'\n')
+
+                if(self.hostOptions[host]['options']['defaultRoute']!=''):
+                    print('we are in default route')
+                    text1.insert(INSERT,'Default Route : ' + self.hostOptions[host]['options']['defaultRoute']+'\n')
+
+                if(self.hostOptions[host]['options']['cores']!=''):
+                    print('we are in cores')
+                    text1.insert(INSERT,'Cores : ' + self.hostOptions[host]['options']['cores']+'\n')
+
+                if(self.hostOptions[host]['options']['startCommand']!=''):
+                    print('we are in start command')
+                    text1.insert(INSERT,'start Command : ' + self.hostOptions[host]['options']['startCommand']+'\n')
+
+                if(self.hostOptions[host]['options']['stopCommand']!=''):
+                    print('we are in stop command')
+                    text1.insert(INSERT,'stop Command : ' + self.hostOptions[host]['options']['stopCommand']+'\n')
+
+                if(self.hostOptions[host]['options']['vlanInterfaces']!=[]):
+                    print('we are in vlan interface')
+                    text1.insert(INSERT,'VLAN Interfaces : ')
+                    text1.insert(INSERT,self.hostOptions[host]['options']['vlanInterfaces'])
+                    text1.insert(INSERT,'\n')
+
+                if(self.hostOptions[host]['options']['privateDirectory']!=[]):
+                    print('we are in private directories')
+                    text1.insert(INSERT,'Private Directories : ')
+                    text1.insert(INSERT,self.hostOptions[host]['options']['privateDirectory'])
+                    text1.insert(INSERT,'\n')
+
+                if(self.hostOptions[host]['options']['externalInterfaces']!=[]):
+                    print('we are in external interfaces')
+                    text1.insert(INSERT,'External Interfaces : ')
+                    text1.insert(INSERT,self.hostOptions[host]['options']['externalInterfaces'])
+                    text1.insert(INSERT,'\n')
+
+                text1.config(state='disabled')
+                text1.pack()
+                return
+
+        #cas Controller
+        for controller in self.controllerOptions.keys():
+            item=self.widgetToItem[controller]
+            name_node=self.itemToName[item]
+            if(node[0]==name_node):
+                #text1.insert(INSERT,self.controllerOptions[controller])
+                text1.insert(INSERT,'Controller Name : ' + str(self.controllerOptions[controller]['hostname'])+'\n')
+                text1.insert(INSERT,'Remote Port : ' + str(self.controllerOptions[controller]['options']['remotePort'])+'\n')
+                text1.insert(INSERT,'Controller Protocol : ' + str(self.controllerOptions[controller]['options']['controllerProtocol'])+'\n')
+                text1.insert(INSERT,'Remote IP : ' + str(self.controllerOptions[controller]['options']['remoteIP'])+'\n')
+                text1.insert(INSERT,'Controller Type : ' + str(self.controllerOptions[controller]['options']['controllerType'])+'\n')
+                text1.config(state='disabled')
+                text1.pack()
+                return
+
+        #cas legacyswitch
+        for lswitch in self.legacySwitchOptions.keys():
+            item=self.widgetToItem[lswitch]
+            name_node=self.itemToName[item]
+            if(node[0]==name_node):
+                text1.insert(INSERT,'Legacy Switch Name : ' + self.legacySwitchOptions[lswitch]['name'] + '\n')
+                text1.insert(INSERT,'Legacy Switch Number : ' + str(self.legacySwitchOptions[lswitch]['number']) + '\n')
+                text1.insert(INSERT,'Switch Type : ' + self.legacySwitchOptions[lswitch]['options']['switchType']+'\n')
+                text1.config(state='disabled')
+                text1.pack()
+                return
+
+        #cas lrouter
+        for lrouter in self.legacyRouterOptions.keys():
+            item=self.widgetToItem[lrouter]
+            name_node=self.itemToName[item]
+            if(node[0]==name_node):
+                text1.insert(INSERT,'Legacy Router Name : ' + self.legacyRouterOptions[lrouter]['name'] + '\n')
+                text1.insert(INSERT,'Legacy Router Number : ' + str(self.legacyRouterOptions[lrouter]['number']) + '\n')
+                text1.insert(INSERT,'Switch Type : ' + self.legacyRouterOptions[lrouter]['options']['switchType']+'\n')
+                text1.config(state='disabled')
+                text1.pack()
+                return
+
+        for link in self.links.keys():
+            link_info = 'Link between ' + str(self.links[link]['src']) + ' and ' + str(self.links[link]['dest'])
+            if(node[0]==link_info):
+                text1.insert(INSERT,"Link source : " + str(self.links[link]['src']) + '\n')
+                text1.insert(INSERT,"Link destination : " + str(self.links[link]['dest']) + '\n')
+                if(self.links[link]['options']['loss'] != ''):
+                    text1.insert(INSERT,'Loss : ' + str(self.links[link]['options']['loss']) + '\n')
+
+                if(self.links[link]['options']['jitter'] != ''):
+                    text1.insert(INSERT,'Jitter : ' + str(self.links[link]['options']['jitter']) + '\n')
+
+                if(self.links[link]['options']['speedup'] != ''):
+                    text1.insert(INSERT,'Speedup : ' + str(self.links[link]['options']['speedup']) + '\n')
+
+                if(self.links[link]['options']['delay'] != ''):
+                    text1.insert(INSERT,'Delay : ' + str(self.links[link]['options']['delay'])+ '\n')
+
+                if(self.links[link]['options']['bw'] != ''):
+                    text1.insert(INSERT,'Bandwidth : ' + str(self.links[link]['options']['bw'])+ '\n')
+
+                if(self.links[link]['options']['max_queue_size'] != ''):
+                    text1.insert(INSERT,'Max queue size : ' + str(self.links[link]['options']['max_queue_size'])+ '\n')
+                text1.config(state='disabled')
+                text1.pack()
+                return
+
     def logInformationsPreferences(self):
         setLogLevel('info')
         newPrefOptions={}
@@ -1195,14 +1602,15 @@ class Interface():
         x1=event.x
         y1=event.y
         if (self.activeButton == 'Switch'):
-            bouton1=Button(self.canvas,image=self.images['Switch'])
+            #bouton1=Button(self.canvas,image=self.images['Switch'])
             self.switchNumber+=1
             name_switch='s'+str(self.switchNumber) #s1
+            bouton1=Button(self.canvas,image=self.images['Switch'],text=name_switch,compound='top')
             self.switchOptions[bouton1]={}
             self.switchOptions[bouton1]['numSwitch']=self.switchNumber
             self.switchOptions[bouton1]['nameSwitch']=name_switch
             self.switchOptions[bouton1]['controllers']=[]
-            self.switchOptions[bouton1]['options']={"controllers": [],"hostname": name_switch,"nodenum":self.switchNumber,"switchType":"default"}
+            self.switchOptions[bouton1]['options']={"controllers": [],"hostname": name_switch,"nodenum":self.switchNumber,"switchType":"default",'stopCommand':'','sflow':0,'switchIP':'','dpid':'','dpctl':'','startCommand':'','netflow':0,'externalInterfaces':[]}
             self.name_switch.append(name_switch)
             id1=self.canvas.create_window((x1,y1),anchor='center',window=bouton1,tags='Switch')
             self.widgetToItem[bouton1]=id1
@@ -1212,18 +1620,20 @@ class Interface():
             self.make_draggable_switch(self.buttons_canevas[name_switch])
             self.nb_widget_canevas+=1
             self.list_buttons['Switch'].config(relief="raised")
+            self.names.append(name_switch)
             self.activeButton=None
         elif(self.activeButton == 'Host'):
-            bouton2=Button(self.canvas,image=self.images['Host'])
+            #bouton2=Button(self.canvas,image=self.images['Host'])
             self.hostNumber+=1
+            #bouton2=Button(self.canvas,image=self.images['Host'],text=str(self.hostNumber),compound='top')
             name_host='h'+str(self.hostNumber) #h1
-            self.name_host.append(name_host)
+            bouton2=Button(self.canvas,image=self.images['Host'],text=name_host,compound='top')
             self.hostOptions[bouton2]={}
             #self.hostOptions[bouton2]['sched']='host'
             self.hostOptions[bouton2]['numhost']=self.hostNumber
             self.hostOptions[bouton2]['hostname']=name_host
             self.hostOptions[bouton2]['options']={}
-            self.hostOptions[bouton2]['options']={'hostname':name_host,"nodeNum":self.hostNumber,"sched":"host"}
+            self.hostOptions[bouton2]['options']={'hostname':name_host,"nodeNum":self.hostNumber,"sched":"host",'stopCommand':'','externalInterfaces':[],'ip':'','privateDirectory':[],'nodeNum':self.hostNumber,'vlanInterfaces':[],'cores':'','startCommand':'','cpu':'','defaultRoute':''}
             id2=self.canvas.create_window((x1,y1),anchor='center',window=bouton2,tags='host')
             self.itemToName[id2]=name_host
             self.widgetToItem[bouton2]=id2
@@ -1232,14 +1642,16 @@ class Interface():
             self.make_draggable_host(self.buttons_canevas[name_host])
             self.nb_widget_canevas+=1
             self.list_buttons['Host'].config(relief="raised")
+            self.names.append(name_host)
             self.activeButton=None
         elif(self.activeButton == 'Controller'):
-            bouton3=Button(self.canvas,image=self.images['Controller'])
+            #bouton3=Button(self.canvas,image=self.images['Controller'])
             self.controllerNumber+=1
             name_controller='c'+str(self.controllerNumber)
+            bouton3=Button(self.canvas,image=self.images['Controller'],text=name_controller,compound='top')
             id3=self.canvas.create_window((x1,y1),anchor='center',window=bouton3,tags='Controller')
             self.controllerOptions[bouton3]={}
-            self.controllerOptions[bouton3]['numController']=self.controllerNumber
+            #self.controllerOptions[bouton3]['numController']=self.controllerNumber
             self.controllerOptions[bouton3]['hostname']=name_controller
             self.controllerOptions[bouton3]['options']={'hostname':name_controller,'remotePort':6633,'controllerType':'OpenFlow Reference','controllerProtocol':'TCP','remoteIP':'127.0.0.1'}
             self.widgetToItem[bouton3]=id3
@@ -1249,32 +1661,44 @@ class Interface():
             self.make_draggable_controller(self.buttons_canevas[name_controller])
             self.nb_widget_canevas+=1
             self.list_buttons['Controller'].config(relief="raised")
+            self.names.append(name_controller)
             self.activeButton=None
         elif(self.activeButton == 'LegacySwitch'):
             self.switchNumber+=1
             name_legacySwitch = 's' + str(self.switchNumber)
-            bouton4=Button(self.canvas,image=self.images['LegacySwitch'])
-            self.legacySwitchOptions[bouton4]=name_legacySwitch
+            bouton4=Button(self.canvas,image=self.images['LegacySwitch'],text=name_legacySwitch,compound='top')
+            self.buttons_canevas[name_legacySwitch]=bouton4
+            self.legacySwitchOptions[bouton4]={}
+            self.legacySwitchOptions[bouton4]['name']=name_legacySwitch
+            self.legacySwitchOptions[bouton4]['number']=self.switchNumber
+            self.legacySwitchOptions[bouton4]['options']={'num':self.switchNumber,'hostname':name_legacySwitch,'switchType':'LegacySwitch'}
             id4=self.canvas.create_window((x1,y1),anchor='center',window=bouton4,tags='LegacySwitch')
             self.itemToName[id4]=name_legacySwitch
             self.widgetToItem[bouton4]=id4
             self.itemToWidget[id4]=bouton4
+            self.names.append(name_legacySwitch)
             self.make_draggable_legacySwitch(bouton4)
             self.nb_widget_canevas+=1
             self.list_buttons['LegacySwitch'].config(relief='raised')
             self.activeButton=None
         elif(self.activeButton == 'LegacyRouter'):
+            #print('we are in legacyRouter')
             self.switchNumber+=1
             name_legacyRouter = 'r' + str(self.switchNumber)
-            bouton5=Button(self.canvas,image=self.images['LegacyRouter'])
-            self.legacyRouterOptions[bouton5]=name_legacyRouter
+            bouton5=Button(self.canvas,image=self.images['LegacyRouter'],text=name_legacyRouter,compound='top')
+            self.buttons_canevas[name_legacyRouter]=bouton5
+            self.legacyRouterOptions[bouton5]={}
+            self.legacyRouterOptions[bouton5]['name']=name_legacyRouter
+            self.legacyRouterOptions[bouton5]['number']=self.switchNumber
+            self.legacyRouterOptions[bouton5]['options']={'num':self.switchNumber,'hostname':name_legacyRouter,'switchType':'LegacyRouter'}
             id5=self.canvas.create_window((x1,y1),anchor='center',window=bouton5,tags='LegacyRouter')
             self.itemToName[id5]=name_legacyRouter
             self.widgetToItem[bouton5]=id5
             self.itemToWidget[id5]=bouton5
+            self.names.append(name_legacyRouter)
             self.make_draggable_legacyRouter(bouton5)
             self.nb_widget_canevas+=1
-            self.list_buttons['LegacySwitch'].config(relief='raised')
+            self.list_buttons['LegacyRouter'].config(relief='raised')
             self.activeButton=None
 
     def saveTopology(self):
@@ -1283,34 +1707,48 @@ class Interface():
         savingSwitches=[]
         savinghosts=[]
         savinglinks=[]
+        savingControllers=[]
         dictionary={}
         for item in self.widgetToItem.values():
             tag = self.canvas.gettags(item)
             x,y = self.canvas.coords(item)
             widget=self.itemToWidget[item]
-            if('Switch' in tag or 'LegacySwitch' in tag):
+            if('Switch' in tag):
                 switchNum=self.switchOptions[widget]['numSwitch']
                 switchName=self.switchOptions[widget]['nameSwitch']
                 savingSwitch={'number':str(switchNum),'x':str(x),'y':str(y),'opts':self.switchOptions[widget]['options']}
-                #print('switchoptions:'+str(savingSwitch['opts']))
                 savingSwitches.append(savingSwitch)
             elif('host' in tag):
                 hostNum=self.hostOptions[widget]['numhost']
                 savinghost={'number':str(hostNum),'x':str(x),'y':str(y),'opts':self.hostOptions[widget]['options']}
-                #print('hostnum'+str(savinghost['number']))
-                #print('hostoptions:'+str(savinghost['opts']))
                 savinghosts.append(savinghost)
+            elif('LegacySwitch' in tag):
+                legacySwitchNum=self.legacySwitchOptions[widget]['number']
+                legacySwitchName=self.legacySwitchOptions[widget]['name']
+                savingLegacySwitch={'number':str(legacySwitchNum),'x':str(x),'y':str(y),'opts':self.legacySwitchOptions[widget]['options']}
+                savingSwitches.append(savingLegacySwitch)
+            elif('LegacyRouter' in tag):
+                legacyRouterNum=self.legacyRouterOptions[widget]['number']
+                legacyRouterName=self.legacyRouterOptions[widget]['name']
+                savingLegacyRouter={'number':str(legacyRouterNum),'x':str(x),'y':str(y),'opts':self.legacyRouterOptions[widget]['options']}
+                savingSwitches.append(savingLegacyRouter)
+            elif('Controller' in tag ):
+                savingController={'x':str(x),'y':str(y),'opts':self.controllerOptions[widget]['options'] }
+                savingControllers.append(savingController)
         dictionary['hosts']=savinghosts
         dictionary['switches']=savingSwitches
+        dictionary['controllers']=savingControllers
         dictionary['application']=self.preferences
 
         for link in self.links.keys():
             options={}
             src = self.links[link]['src']
             target = self.links[link]['dest']
+            #print("target save topology: "+str(target))
             options=self.links[link]['options']
             savingLink={'src':src,'dest':target,'options':options}
-            savinglinks.append(savingLink)
+            if (self.links[link]['type'] == 'data'):
+                savinglinks.append(savingLink)
 
         dictionary['links']=savinglinks
         dictionary['application']=self.preferences
@@ -1324,20 +1762,32 @@ class Interface():
             bouton.config(state='disabled')
         self.start()
 
-    #def dump_perf(self):
+    def singleSwitchTopology(self):
+        switch = self.addSwitch('s1')
+        # Python's range(N) generates 0..N-1
+        for h in range(n):
+            host = self.addHost('h%s' % (h + 1))
+            self.addLink(host, switch)
 
+    def convertJsonUnicode(self, text):
+        "Some part of Mininet don't like Unicode"
+        if isinstance(text, dict):
+            return {self.convertJsonUnicode(key): self.convertJsonUnicode(value) for key, value in text.items()}
+        elif isinstance(text, list):
+            return [self.convertJsonUnicode(element) for element in text]
+        elif isinstance(text, unicode):
+            return text.encode('utf-8')
+        else:
+            return text
 
     def loadTopology(self):
         fileTypes = [("Mininet Topology","*.mn"),("All Files",'*')]
         f=tkFileDialog.askopenfile(filetypes=fileTypes,title="Open file",mode='r')
         self.nvTopology()
-        topologyLoaded=json.load(f)
-        print('\n')
-        print(topologyLoaded)
+        topologyLoaded=self.convertJsonUnicode(json.load(f))
 
         #load hosts
         hosts=topologyLoaded['hosts']
-
         if (len(hosts)!=0):
             for i in range(0,len(hosts)):
                 nodeNum = hosts[i]['number']
@@ -1346,12 +1796,12 @@ class Interface():
                 y=hosts[i]['y']
                 self.hostNumber+=1
                 icon = Button(self.canvas,image=self.images['Host'])
-                print(icon)
-                print('\n')
                 item = self.canvas.create_window(x,y,anchor='c',window=icon,tags='host')
                 self.widgetToItem[icon]=item
                 self.itemToWidget[item]=icon
                 self.nameToItem[hostname]=item;
+                self.itemToName[item]=hostname
+                self.names.append(hostname)
                 self.make_draggable_host(icon)
                 self.buttons_canevas[hostname]=icon
                 self.hostOptions[icon]={}
@@ -1359,49 +1809,145 @@ class Interface():
                 self.hostOptions[icon]['hostname']=hostname
                 self.hostOptions[icon]['options']=hosts[i]['opts']
 
+        #load controllers
+        controllers=topologyLoaded['controllers']
+        if(len(controllers)!=0):
+            for j in range(0,len(controllers)):
+                options=controllers[i]['opts']
+                controller_name=options['hostname']
+                x2=controllers[j]['x']
+                y2=controllers[j]['y']
+                self.controllerNumber+=1
+                icon2=Button(self.canvas,image=self.images['Controller'])
+                item2=self.canvas.create_window(x2,y2,anchor='c',window=icon2,tags='Controller')
+                self.buttons_canevas[controller_name]=icon2
+                self.widgetToItem[icon2]=item2
+                self.itemToWidget[item2]=icon2
+                self.names.append(controller_name)
+                self.itemToName[item2]=controller_name
+                self.make_draggable_controller(icon2)
+                self.nameToItem[controller_name]=item2
+                self.controllerOptions[icon2]={}
+                self.controllerOptions[icon2]['hostname']=options['hostname']
+                self.controllerOptions[icon2]['options']=options
+
         #load switches
         switches=topologyLoaded['switches']
         if(len(switches)!=0):
             for i in range(0,len(switches)):
-                switchNum=switches[i]['number']
-                switchName='s'+str(switchNum)
-                x1=switches[i]['x']
-                y1=switches[i]['y']
-                self.switchNumber+=1
-                icon1 = Button(self.canvas,image=self.images['Switch'])
-                print('\n')
-                print(icon1)
-                item1=self.canvas.create_window(x1,y1,anchor='c',window=icon1,tags='Switch')
-                self.widgetToItem[icon1]=item1
-                self.itemToWidget[item1]=icon1
-                self.make_draggable_switch(icon1)
-                self.buttons_canevas[switchName]=icon1
-                self.nameToItem[switchName]=item1;
-                self.switchOptions[icon1]={}
-                self.switchOptions[icon1]['numSwitch']=switchNum
-                self.switchOptions[icon1]['nameSwitch']=switchName
-                self.switchOptions[icon1]['options']=switches[i]['opts']
+                switch_option=switches[i]['opts']
+                if(switch_option['switchType'] != 'LegacySwitch' and switch_option['switchType'] != 'LegacyRouter'):
+                    switchNum=switches[i]['number']
+                    switchName='s'+str(switchNum)
+                    switch_option=switches[i]['opts']
+                    x1=switches[i]['x']
+                    y1=switches[i]['y']
+                    self.switchNumber+=1
+                    icon1 = Button(self.canvas,image=self.images['Switch'])
+                    item1=self.canvas.create_window(x1,y1,anchor='c',window=icon1,tags='Switch')
+                    self.itemToName[item1]=switchName
+                    self.widgetToItem[icon1]=item1
+                    self.itemToWidget[item1]=icon1
+                    self.make_draggable_switch(icon1)
+                    self.buttons_canevas[switchName]=icon1
+                    self.names.append(switchName)
+                    self.nameToItem[switchName]=item1;
+                    self.switchOptions[icon1]={}
+                    self.switchOptions[icon1]['numSwitch']=switchNum
+                    self.switchOptions[icon1]['nameSwitch']=switchName
+                    self.switchOptions[icon1]['options']=switches[i]['opts']
 
-        #load controllers
+                # create links to controllers
+                #if (switch_option['switchType'] != 'LegacyRouter' and switch_option['switchType'] != 'LegacySwitch'):
+                    controllers=switch_option['controllers']   #list of controller
+                    if(len(controllers)!=0):
+                        for controller in controllers:
+                            controller_item = self.nameToItem[controller]
+                            dx, dy = self.canvas.coords(controller_item)
+                            self.link = self.canvas.create_line(float(x1),float(y1),dx,dy,width=4,fill='red',dash=(6, 4, 2, 4),tag='link')
+                            self.canvas.itemconfig(self.link,tags=self.canvas.gettags(self.link)+('control',))
+                            self.liens.append(self.link)
+                            self.links[self.link]={}
+                            self.links[self.link]['src']=switchName
+                            self.links[self.link]['dest']=controller
+                            self.links[self.link]['type']='control'
+                            self.ControlLinkBindings()
+                            self.link = self.linkWidget = None
 
+        #load legacySwitch
+        switches=topologyLoaded['switches']
+        if(len(switches)!=0):
+            for i in range(0,len(switches)):
+                options_switch=switches[i]['opts']
+                print(options_switch)
+                if (options_switch['switchType'] == 'LegacySwitch'):
+                    self.switchNumber+=1
+                    legacyswitch_name = options_switch['hostname']
+                    x3=switches[i]['x']
+                    y3=switches[i]['y']
+                    icon3=Button(self.canvas,image=self.images['LegacySwitch'])
+                    item3=self.canvas.create_window(x3,y3,anchor='c',window=icon3,tags='LegacySwitch')
+                    self.widgetToItem[icon3]=item3
+                    self.itemToWidget[item3]=icon3
+                    self.names.append(legacyswitch_name)
+                    self.itemToName[item3]=options_switch['hostname']
+                    self.buttons_canevas[legacyswitch_name]=icon3
+                    self.make_draggable_legacySwitch(icon3)
+                    self.nameToItem[options_switch['hostname']]=item3
+                    self.legacySwitchOptions[icon3]={}
+                    self.legacySwitchOptions[icon3]['name']=options_switch['hostname']
+                    self.legacySwitchOptions[icon3]['number']=options_switch['num']
+                    self.legacySwitchOptions[icon3]['options']=options_switch
+
+        #load legacyRouter
+        switches=topologyLoaded['switches']
+        if(len(switches)!=0):
+            for i in range(0,len(switches)):
+                options_switch1=switches[i]['opts']
+                if (options_switch1['switchType'] == 'LegacyRouter'):
+                    self.switchNumber+=1
+                    x4=switches[i]['x']
+                    y4=switches[i]['y']
+                    legacyrouter_name=options_switch1['hostname']
+                    icon4=Button(self.canvas,image=self.images['LegacyRouter'])
+                    item4=self.canvas.create_window(x4,y4,anchor='c',window=icon4,tags='LegacyRouter')
+                    self.buttons_canevas[legacyrouter_name]=icon4
+                    self.widgetToItem[icon4]=item4
+                    self.itemToWidget[item4]=icon4
+                    self.names.append(legacyrouter_name)
+                    self.itemToName[item4]=options_switch1['hostname']
+                    self.make_draggable_legacyRouter(icon4)
+                    self.nameToItem[options_switch1['hostname']]=item4
+                    self.legacySwitchOptions[icon3]={}
+                    self.legacySwitchOptions[icon3]['name']=options_switch1['hostname']
+                    self.legacySwitchOptions[icon3]['number']=options_switch1['num']
+                    self.legacySwitchOptions[icon3]['options']=options_switch1
 
         #load Links
         links=topologyLoaded['links']
+        print('nameToItem'+str(self.nameToItem))
+        print('links'+str(links))
         if(len(links)!=0):
              for i in range(0,len(links)):
                  src = links[i]['src'] #nom de SRC
-                 dest=links[i]['dest'] #nom de DEST
+                 dst=links[i]['dest'] #nom de DEST
+                 print('item_src'+str(self.nameToItem[src]))
+                 print('item_dest'+str(self.nameToItem[dst]))
                  srcx,srcy=self.canvas.coords(self.nameToItem[src]); #coordonnées de la source
-                 destx,desty=self.canvas.coords(self.nameToItem[dest]);
-
+                 destx,desty=self.canvas.coords(self.nameToItem[dst]);
                  self.link=self.canvas.create_line(srcx,srcy,destx,desty,width=4,fill='blue',tag='link')
+                 self.canvas.itemconfig(self.link,tags=self.canvas.gettags(self.link)+('data',))
                  self.links[self.link]={}
                  self.links[self.link]['src']=src
-                 self.links[self.link]['dest']=dest
+                 self.links[self.link]['dest']=dst
+                 self.links[self.link]['type']='data'
                  self.links[self.link]['options']=links[i]['options']
                  self.DataLinkBindings()
+                 self.liens.append(self.link)
                  self.link=None
                  self.linkWidget=None
+
+        f.close()
 
     def canvasx( self, x_root ):
         return self.canvas.canvasx( x_root ) - self.canvas.winfo_rootx()
@@ -1432,11 +1978,12 @@ class Interface():
         elif('Controller' in tags):
             self.links[self.link]['src']=self.controllerOptions[w]['hostname']
         elif('LegacyRouter' in tags):
-            self.links[self.link]['src']=self.legacyRouterOptions[w]
+            self.links[self.link]['src']=self.legacyRouterOptions[w]['name']
         elif('LegacySwitch' in tags):
-            self.links[self.link]['src']=self.legacySwitchOptions[w]
-        self.links[self.link]['options']={}
-        self.liens.append(self.link)
+            self.links[self.link]['src']=self.legacySwitchOptions[w]['name']
+        self.links[self.link]['options']={'loss':'','jitter':'','speedup':'','delay':'','bw':'','max_queue_size':''}
+        self.links[self.link]['type']=None
+        #self.liens.append(self.link)
         #self.DataLinkBindings()
         self.linkWidget=w
         self.source[w]=self.link
@@ -1499,24 +2046,26 @@ class Interface():
         desttags=self.canvas.gettags(target)
         dest1=self.itemToWidget.get(target,None) #widget correspondant à l'item se trouvant à l'arrivée
 
+        if(dest1 == None):
+            self.canvas.delete( self.link )
+            del self.source[src]
+            del self.links[self.link]
+            return
+            #self.link=None
+            #self.linkWidget=None
+
         if (dest1 != None):
             tags=self.canvas.gettags(target)
             if('Switch' in tags):
                 self.links[self.link]['dest']=self.switchOptions[dest1]['nameSwitch']
             elif('host' in tags):
                 self.links[self.link]['dest']=self.hostOptions[dest1]['hostname']
-            # elif('host' in tags):
-            #     self.links[self.link]['dest']=self.controllerOptions[dest1]['hostname']
+            elif('Controller' in tags):
+                self.links[self.link]['dest']=self.controllerOptions[dest1]['hostname']
             elif('LegacySwitch' in tags):
-                self.links[self.link]['dest']=self.legacySwitchOptions[dest1]
+                self.links[self.link]['dest']=self.legacySwitchOptions[dest1]['name']
             elif('LegacyRouter' in tags):
-                self.links[self.link]['dest']=self.legacyRouterOptions[dest1]
-
-        if(dest1 == None):
-            self.canvas.delete( self.link )
-            del self.source[src]
-            self.link=None
-            self.linkWidget=None
+                self.links[self.link]['dest']=self.legacyRouterOptions[dest1]['name']
 
         if(('host' in srctags and 'host' in desttags) or
               ('Controller' in srctags and 'LegacyRouter' in desttags)or
@@ -1526,21 +2075,26 @@ class Interface():
               ('Controller' in srctags and 'host' in desttags)or
               ('host' in srctags and 'Controller' in desttags)or
               ('Controller' in srctags and 'Controller' in desttags)):
-              self.DataLinkBindings()
               self.canvas.delete(self.link)
               del self.links[self.link]
-              self.link=None
-              self.linkWidget=None
+              return
+              #self.link=None
+              #self.linkWidget=None
         elif(('Controller' in srctags and 'Switch' in desttags)or
             ('Switch' in srctags and 'Controller' in desttags)):
             linkType='control'
+            self.links[self.link]['type']='control'
             self.canvas.itemconfig(self.link,dash=(6, 4, 2, 4),fill='red')
             self.ControlLinkBindings()
             self.canvas.itemconfig(self.link,tags=self.canvas.gettags(self.link)+(linkType,))
+            self.liens.append(self.link)
         else:
+            #print("i m not a controller , setting links")
             linkType='data'
+            self.links[self.link]['type']='data'
             self.DataLinkBindings()
             self.canvas.itemconfig(self.link,tags=self.canvas.gettags(self.link)+(linkType,))
+            self.liens.append(self.link)
 
         if(('Controller' in srctags and 'Switch' in desttags)):
             controller_item=self.widgetToItem[src]
@@ -1709,6 +2263,46 @@ class Interface():
             info( "\n\n NOTE: PLEASE REMEMBER TO EXIT THE CLI BEFORE YOU PRESS THE STOP BUTTON. Not exiting will prevent MiniEdit from quitting and will prevent you from starting the network again during this sessoin.\n\n")
             CLI(self.net)
 
+    def changehostname(self,*args):
+        hostnames['host0']=var_name.get()
+        host_nodes[0]=self.name_host[hostnames['host0']]
+        print("host_nodes"+str(host_nodes)+'\n')
+
+    def changehostname1(self,*args):
+        hostnames['host1']=var_name1.get()
+        host_nodes[1]=self.name_host[hostnames['host1']]
+        print("host_nodes 1 " + str(host_nodes) + '\n')
+
+    def pingpair(self):
+        global host_nodes
+        global hostnames
+        hostnames={}
+        global var_name
+        global var_name1
+        name_hosts=()
+        for host in self.name_host.keys():
+            name_hosts=name_hosts+(str(host),)
+        print(name_hosts)
+        root=Toplevel()
+        root.geometry("700x700")
+        hostnames['host0']=name_hosts[0]
+        hostnames['host1']=name_hosts[0]
+        host_nodes=[self.name_host[hostnames['host0']],self.name_host[hostnames['host1']]]
+        var_name=StringVar()
+        var_name.trace("w",self.changehostname)
+        var_name1=StringVar()
+        var_name1.trace("w",self.changehostname1)
+        var_name.set(name_hosts[0])
+        var_name1.set(name_hosts[0])
+        dropDownMenu=OptionMenu(root,var_name,*name_hosts)
+        dropDownMenu.place(x=350,y=110)
+        dropDownMenu1=OptionMenu(root,var_name1,*name_hosts)
+        dropDownMenu1.place(x=500,y=110)
+        #hosts_nodes=[self.name_host[hostnames['host0']],self.name_host[hostnames['host1']]]
+        #cmd = lambda arg1=hosts_nodes : self.pinghosts(arg1,timeout=None)
+        bouton = Button(root,text='OK',command=partial(self.pinghosts,host_nodes))
+        bouton.place(x=300,y=600)
+
     def stop_net( self ):
         if self.net is not None:
             for widget in self.widgetToItem:
@@ -1847,7 +2441,6 @@ class Interface():
 
             elif 'LegacyRouter' in tags:
                 newhost = net.addHost(name,cls=LegacyRouter)
-                self.hosts.append(newhost)
 
             elif 'host' in tags:
                 options = self.hostOptions[self.itemToWidget[item]]
@@ -1882,6 +2475,7 @@ class Interface():
 
                 hostnew = net.addHost(name,cls=hostCls,ip=ip,defaultRoute=defaultRoute)
                 self.hosts.append(hostnew)
+                self.name_host[name]=hostnew
 
                 # Set the CPULimitedHost specific options
                 if ('cores' in host_options and len(host_options['cores'])>0):
