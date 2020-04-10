@@ -5,6 +5,7 @@ from Tkinter import *
 from PIL import Image,ImageTk
 #from Tkinter import ttk
 import ttk
+from tkFont import Font
 import tkFileDialog
 import logging
 from net import Mininet, VERSION
@@ -119,15 +120,17 @@ class Interface():
         self.selectedNode=None
         self.selectedLink=None
         self.nb_widget_canevas=0
-        self.preferences={"dpctl": "","ipBase": "10.0.0.0/8","netflow": {"nflowAddId": "0","nflowTarget": "","nflowTimeout": "600"},"openFlowVersions": {"ovsOf10": "1","ovsOf11": "0","ovsOf12": "0","ovsOf13": "0"},"sflow" : {"sflowHeader": "128","sflowPolling": "30","sflowSampling": "400","sflowTarget": ""},"startCLI": "0","switchType": "ovs","terminalType": "xterm"}
+        self.preferences={"dpctl": "","ipBase": "10.0.0.0/8","netflow": {"nflowAddId":0,"nflowTarget":"","nflowTimeout": "600"},"openFlowVersions": {"ovsOf10":1,"ovsOf11":0,"ovsOf12":0,"ovsOf13":0},"sflow" : {"sflowHeader": "128","sflowPolling": "30","sflowSampling": "400","sflowTarget": ""},"startCLI":0,"switchType": "ovs","terminalType": "xterm"}
         self.list_buttons={}
         self.buttons_canevas={}
         self.links={}
         self.itemToName={}
         self.liens=[]
         self.name_switch=[]
+        self.nameswitch={}
         self.name_host=[]
         self.names=[]
+        self.namecontroller={}
         self.net=None
         self.switchOptions={}
         self.hostOptions={}
@@ -154,76 +157,209 @@ class Interface():
 
     def create_menu_bar(self,window):
         mainmenu = Menu(window)
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
+        sousmenu1=Menu(mainmenu,bg='white',tearoff=0)
+        sousmenu1.add_command(label="New",font=helv36,command=self.nvTopology)
+        sousmenu1.add_command(label="Open",font=helv36,command=self.loadTopology)
+        sousmenu1.add_command(label="Save",font=helv36,command=self.saveTopology)
+        sousmenu1.add_command(label="Export level 2 script",font=helv36)
+        sousmenu1.add_command(label="Quit",font=helv36)
+        mainmenu.add_cascade(label="File",menu=sousmenu1,font=helv36)
 
-        sousmenu1=Menu(mainmenu,tearoff=0)
-        sousmenu1.add_command(label="New",command=self.nvTopology)
-        sousmenu1.add_command(label="Open",command=self.loadTopology)
-        sousmenu1.add_command(label="Save",command=self.saveTopology)
-        sousmenu1.add_command(label="Export level 2 script")
-        sousmenu1.add_command(label="Quit")
-        mainmenu.add_cascade(label="File",menu=sousmenu1)
+        sousmenu2=Menu(mainmenu,bg='white',tearoff=0)
+        sousmenu2.add_command(label="Cut",font=helv36)
+        sousmenu2.add_command(label="Preferences",font=helv36,command=self.setPreferences)
+        mainmenu.add_cascade(label='Edit',menu=sousmenu2,font=helv36)
 
-        sousmenu2=Menu(mainmenu,tearoff=0)
-        sousmenu2.add_command(label="Cut")
-        sousmenu2.add_command(label="Preferences",command=self.setPreferences)
-        mainmenu.add_cascade(label='Edit',menu=sousmenu2)
+        sousmenu3=Menu(mainmenu,bg='white',font=helv36,tearoff=0)
+        sousmenu3.add_command(label="Run",font=helv36)
+        sousmenu3.add_command(label="Stop",font=helv36)
+        sousmenu3.add_command(label="Show OVS Summary",font=helv36,command=self.ovsShow)
+        sousmenu3.add_command(label="Root Terminal",font=helv36,command=self.display_shell)
+        mainmenu.add_cascade(label='Run',menu=sousmenu3,font=helv36)
 
-        sousmenu3=Menu(mainmenu,tearoff=0)
-        sousmenu3.add_command(label="Run")
-        sousmenu3.add_command(label="Stop")
-        sousmenu3.add_command(label="Show OVS Summary",command=self.ovsShow)
-        sousmenu3.add_command(label="Root Terminal",command=self.display_shell)
-        mainmenu.add_cascade(label='Run',menu=sousmenu3)
+        sousmenu4=Menu(mainmenu,bg='white',tearoff=0)
+        sousmenu4.add_command(label="Net",font=helv36,command=self.dumpNet)
+        sousmenu4.add_command(label="Ifconfig",font=helv36,command=self.chooseNode)
+        sousmenu4.add_command(label="Ping all hosts",font=helv36,command=self.pinghosts)
+        sousmenu4.add_command(label="Ping pair",font=helv36,command=self.pingpair)
+        sousmenu4.add_command(label="Iperf",font=helv36,command=self.iperf_test)
+        sousmenu4.add_command(label="List of Nodes",font=helv36,command=self.list_nodes)
+        sousmenu4.add_command(label="Nodes and links informations",font=helv36,command=self.node_info)
+        sousmenu4.add_command(label="Ping packet",font=helv36,command=self.pingpacket)
+        sousmenu4.add_command(label='Preferences informations',font=helv36,command=self.preferencesinformations)
+        mainmenu.add_cascade(label='Command',font=helv36,menu=sousmenu4)
 
-        sousmenu4=Menu(mainmenu,tearoff=0)
-        sousmenu4.add_command(label="Dump",command=self.dumpNet)
-        sousmenu4.add_command(label="Ifconfig",command=self.ifconfig_test)
-        sousmenu4.add_command(label="Ping all hosts",command=self.pinghosts)
-        sousmenu4.add_command(label="Ping pair",command=self.pingpair)
-        sousmenu4.add_command(label="Iperf",command=self.iperf_test)
-        sousmenu4.add_command(label="List of Nodes",command=self.list_nodes)
-        sousmenu4.add_command(label="Nodes and links informations",command=self.node_info)
-        mainmenu.add_cascade(label='Command',menu=sousmenu4)
-
-        sousmenu5=Menu(mainmenu,tearoff=0)
-        sousmenu5.add_command(label="About NetView")
-        mainmenu.add_cascade(label='Help',menu=sousmenu5)
+        sousmenu5=Menu(mainmenu,bg='white',tearoff=0)
+        sousmenu5.add_command(label="About NetView",font=helv36)
+        mainmenu.add_cascade(label='Help',font=helv36,menu=sousmenu5)
 
         window.config(menu=mainmenu)
 
     def create_canvas(self,window):
         #canvas = Canvas(window,width='1000',height='1000',bg='pink')
-        canvas = Canvas(window,width='1500',height='1500',bg='pink')
-        canvas.place(x='100',y='0')
+        canvas = Canvas(window,width='1500',height='1500',bg='SlateGray1')
+        canvas.place(x='55',y='0')
         canvas.bind('<ButtonPress-1>',self.canvasHandle)
         #canvas.bind('<B1-Motion>',self.dragCanevas)
         #canvas.bind('<ButtonRelease-1>',self.dropCanevas)
         return canvas
 
+    def preferencesinformations(self):
+        root = Toplevel()
+        text2 = Text(root)
+        scroll = Scrollbar(root, command=text2.yview)
+        text2.configure(yscrollcommand=scroll.set)
+        text2.config(state="normal")
+        text2.tag_configure('big',justify='center',font=('Helvetica',16,'bold'),foreground='RoyalBlue1',underline=1)
+        text2.tag_configure('color',font=('Helvetica',16,'bold'),spacing1=30)
+        text2.insert(END,'\nPreferences\n','big')
+        if('dpctl' in self.preferences and len(self.preferences['dpctl'])>0):
+            text2.insert(END,"DPCTL: " + str(self.preferences['dpctl'])+'\n')
+        if('ipBase' in self.preferences and len(self.preferences['ipBase'])>0):
+            text2.insert(END,"ipBase: " + str(self.preferences['ipBase'])+'\n')
+        if(self.preferences['netflow']['nflowAddId']==0):
+            text2.insert(END,'nFlowAddID : ' + 'Not checked'+'\n')
+        else:
+            text2.insert(END,'nFlowAddID : ' + 'Checked'+'\n')
+        if(len(self.preferences['netflow']['nflowTarget'])>0):
+            text2.insert(END,'nFlowTarget : ' + self.preferences['netflow']['nflowTarget'] +'\n')
+        if(len(self.preferences['netflow']['nflowTimeout'])>0):
+            text2.insert(END,'nFlowTimeout : ' + self.preferences['netflow']['nflowTimeout'] +'\n')
+        if(len(self.preferences['sflow']['sflowHeader'])>0):
+            text2.insert(END,'sflowHeader: ' + self.preferences['sflow']['sflowHeader'] +'\n')
+        if(len(self.preferences['sflow']['sflowPolling'])>0):
+            text2.insert(END,'sflowPolling: ' + self.preferences['sflow']['sflowPolling'] +'\n')
+        if(len(self.preferences['sflow']['sflowSampling'])>0):
+            text2.insert(END,'sflowSampling: ' + self.preferences['sflow']['sflowSampling'] +'\n')
+        if(len(self.preferences['sflow']['sflowTarget'])>0):
+            text2.insert(END,'sflowTarget: ' + self.preferences['sflow']['sflowTarget'] +'\n')
+        if(self.preferences['startCLI']==0):
+            text2.insert(END,'startCLI: ' + 'Not Checked' +'\n')
+        else:
+            text2.insert(END,'startCLI: ' + 'Checked' +'\n')
+        if(len(self.preferences['switchType'])>0):
+            text2.insert(END,'switchType: ' + self.preferences['switchType'] +'\n')
+        if(len(self.preferences['terminalType'])>0):
+            text2.insert(END,'terminalType: ' + self.preferences['terminalType'] +'\n')
+        for cle,valeur in self.preferences['openFlowVersions'].items():
+            if (valeur == 1) :
+                text2.insert(END,cle + ' : ' + 'Checked'+'\n')
+            else:
+                text2.insert(END,cle + ' : ' + 'Not checked' + '\n')
+        text2.config(state='disabled')
+        text2.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
+
     def list_nodes(self):
         root=Toplevel()
-        text1=Text(root,height=100,width=200)
-        text1.config(state="normal")
-        text1.insert(INSERT,'available nodes are : '+'\n')
+        text2 = Text(root, height=10, width=40)
+        scroll = Scrollbar(root, command=text2.yview)
+        text2.configure(yscrollcommand=scroll.set)
+        text2.tag_configure('big',justify='center',font=('Helvetica',16,'bold'),foreground='RoyalBlue1',underline=1)
+        text2.tag_configure('color',font=('Helvetica',16,'bold'),spacing1=30)
+        text2.insert(END,'\nAvailable nodes\n','big')
+        #text2.pack(side=LEFT)
+        #scroll.pack(side=RIGHT, fill=Y)
+        text2.config(state="normal")
         for i in range(0,len(self.names)):
-            text1.insert(INSERT,self.names[i]+ ' ')
-        text1.config(state='disabled')
-        text1.pack()
+            text2.insert(END,self.names[i]+ ' ','color')
+        text2.config(state='disabled')
+        text2.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
 
     def ifconfig_test(self):
-        list_result=[]
-        for host in self.name_host:
-            result1=self.net.get(host)
-            result2=result1.cmd('ifconfig')
-            list_result.append(result2)
         root=Toplevel()
-        text1=Text(root,height=100,width=200)
-        text1.config(state="normal")
-        for element in list_result :
-            text1.insert(INSERT,element)
-            text1.insert(INSERT,'\n')
-        text1.config(state='disabled')
-        text1.pack()
+        text2=Text(root,height=50,width=100)
+        scroll = Scrollbar(root, command=text2.yview)
+        text2.configure(yscrollcommand=scroll.set)
+        text2.tag_configure('big',justify='center',font=('Helvetica',16,'bold'),foreground='RoyalBlue1',underline=1)
+        #text2.tag_configure('color',font=('Helvetica',16,'bold'),spacing1=30)
+        text2.tag_configure('police',font=('Helvetica',13,'bold'))
+        text2.config(state="normal")
+
+        text2.insert(END,"\n" + str(list_nodes[0]) + "'s interfaces\n"+'\n' + '\n','big')
+        if(list_nodes[0] in namehosts):
+            for host in self.name_host.keys():
+                 if(host == list_nodes[0]):
+                     result1=self.net.get(host)
+                     result2=result1.cmd('ifconfig')
+                     text2.insert(END,result2,'police')
+                     text2.config(state='disabled')
+                     text2.pack(side=LEFT)
+                     scroll.pack(side=RIGHT,fill=Y)
+                     return
+
+        if(list_nodes[0] in namecontrol):
+            #print("listenodes[0]"+str(list_nodes[0]))
+            for controller in self.namecontroller.keys():
+                if(list_nodes[0]== controller):
+                    result1=self.net.get(controller)
+                    result2=result1.cmd('ifconfig')
+                    text2.insert(END,result2,'police')
+                    text2.config(state='disabled')
+                    text2.pack(side=LEFT)
+                    scroll.pack(side=RIGHT,fill=Y)
+                    return
+
+        if(list_nodes[0] in nameswitches):
+            for switch in self.nameswitch.keys():
+                if(list_nodes[0]== switch):
+                    result1=self.net.get(switch)
+                    result2=result1.cmd('ifconfig')
+                    text2.insert(END,result2,'police')
+                    text2.config(state='disabled')
+                    text2.pack(side=LEFT)
+                    scroll.pack(side=RIGHT,fill=Y)
+                    return
+
+    def changeifconfig(self,*args):
+        list_nodes[0]=var_ifconfig.get()
+
+    def chooseNode(self):
+        global list_nodes
+        global namehosts
+        global namecontrol
+        global nameswitches
+        global var_ifconfig
+        var_ifconfig=StringVar()
+        namehosts=[]
+        namecontrol=[]
+        nameswitches=[]
+
+        for hostname in self.name_host.keys():
+            namehosts.append(hostname)
+
+        for switch in self.nameswitch.keys():
+            nameswitches.append(switch)
+
+        for controller in self.namecontroller.keys():
+            namecontrol.append(controller)
+
+        #list of nodes's names
+        namenode=namehosts+nameswitches+namecontrol
+        #print(namenode)
+
+        var_ifconfig.set(namenode[0])
+        var_ifconfig.trace("w",self.changeifconfig)
+        list_nodes=[namenode[0]]
+        #print('listnodes'+str(list_nodes))
+        root=Toplevel()
+        root.geometry('300x130')
+
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
+        label=Label(root,text='Nodes interfaces',font=helv36)
+        label.place(x=100,y=0)
+
+        label1=Label(root,text='Choose node',font=helv36)
+        label1.place(x=110,y=30)
+
+        dropDownMenu=OptionMenu(root,var_ifconfig,*namenode)
+        dropDownMenu.place(x=85,y=60)
+
+        bouton = Button(root,text='OK',command=self.ifconfig_test)
+        bouton.place(x=175,y=60)
+
 
     def changehostname2(self,*args):
         host_names['host0']=var_name2.get()
@@ -350,25 +486,36 @@ class Interface():
         if l4Type == 'UDP':
             result.insert( 0, udpBw )
         #output( '*** Results: %s\n' % result )
-        text1.insert(INSERT,'*** Results: ' +result + '\n')
+        text1.insert(INSERT,'*** Results: ')
+        text1.insert(INSERT,result)
+        text1.insert(INSERT,'\n')
         text1.config(state='disabled')
         text1.pack()
         return result
 
     def pinghosts(self,hosts=None,timeout=None ):
         root=Toplevel()
-        text1=Text(root,height=100,width=200)
+        text1=Text(root,height=10,width=80)
+        scroll = Scrollbar(root, command=text1.yview)
+        text1.configure(yscrollcommand=scroll.set)
+        text1.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        text1.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
+        text1.tag_configure('police1',font=('Helvetica',12,'bold'))
         text1.config(state="normal")
+        #hosts=self.hosts
+
         packets = 0
         lost = 0
         ploss = None
         if not hosts:
+            #print('hosts are not null')
             hosts = self.hosts
+            #print(hosts)
             #output( '*** Ping: testing ping reachability\n' )
-            text1.insert(INSERT,'*** Ping: testing ping reachability\n')
+            text1.insert(END,'\n\n*** Ping: testing ping reachability between hosts\n\n','modif')
         for node in hosts:
             #output( '%s -> ' % node.name )
-            text1.insert(INSERT,str(node.name) + ' ' + '-> ')
+            text1.insert(END,str(node.name) + ' ' + '-> ','police')
             for dest in hosts:
                 if node != dest:
                     opts = ''
@@ -383,7 +530,7 @@ class Interface():
                             m = re.search(r,result)
                             if m is None:
                                 #error( '*** Error: could not parse ping output: %s\n' % pingOutput)
-                                text1.insert(INSERT,'*** Error: could not parse ping output: ' + str(result) + '\n')
+                                text1.insert(END,'*** Error: could not parse ping output: ' + str(result) + '\n','police')
                                 (sent,received)=(1,0)
                             else:
                                 (sent,received) = (int(m.group(1)),int(m.group(2)))
@@ -393,7 +540,7 @@ class Interface():
                     packets += sent
                     if received > sent:
                         #error( '*** Error: received too many packets' )
-                        text1.insert(INSERT,'*** Error: received too many packets')
+                        text1.insert(END,'*** Error: received too many packets','police')
                         #error( '%s' % result )
                         text1.insert(INSERT,str(result))
                         node.cmdPrint('route')
@@ -401,9 +548,9 @@ class Interface():
                     lost += sent - received
                     #output( ( '%s ' % dest.name ) if received else 'X ' )
                     if received :
-                        text1.insert(INSERT,str(dest.name))
+                        text1.insert(INSERT,str(dest.name),'police1')
                     else:
-                        text1.insert(INSERT,str('X'))
+                        text1.insert(INSERT,str('X'),'police1')
             #output( '\n' )
             text1.insert(INSERT,str('\n'))
         if packets > 0:
@@ -411,28 +558,126 @@ class Interface():
             received = packets - lost
             #output( "*** Results: %i%% dropped (%d/%d received)\n" %
                     #( ploss, received, packets ))
-            text1.insert(INSERT,"*** Results: "+str(ploss)+' '+'dropped ('+str(received)+'/'+str(packets)+'received)\n')
+            text1.insert(END,"*** Results: "+str(ploss)+' '+'dropped ('+str(received)+'/'+str(packets)+'received)\n','police')
         else:
             ploss = 0
             #output( "*** Warning: No packets sent\n" )
-            text1.insert(INSERT,"*** Warning: No packets sent\n")
+            text1.insert(END,"*** Warning: No packets sent\n",'police')
         text1.config(state='disabled')
-        text1.pack()
+        text1.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
+        return ploss
+
+    def pingpacket1(self,hosts,number):
+        root=Toplevel()
+        text1=Text(root,height=10,width=80)
+        scroll = Scrollbar(root, command=text1.yview)
+        text1.configure(yscrollcommand=scroll.set)
+        text1.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        text1.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
+        text1.tag_configure('police1',font=('Helvetica',12,'bold'))
+        text1.config(state="normal")
+        h1=self.net.get(hosts['host0'])
+        h2=self.net.get(hosts['host1'])
+        #h2int1=h2.intf('h2-eth0')
+        text1.insert(END,'\nExchanged packets between ' + hosts['host0'] + ' and '  + hosts['host1']+'\n'+'\n')
+        result= h1.cmd('ping -c %s %s' % (number[0],h2.IP()))
+        text1.insert(END,result)
+        text1.config(state='disabled')
+        text1.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
+
+    #ping between two hosts
+    def pinghosts1(self,hosts=None,timeout=None ):
+        root=Toplevel()
+        text1=Text(root,height=10,width=80)
+        scroll = Scrollbar(root, command=text1.yview)
+        text1.configure(yscrollcommand=scroll.set)
+        text1.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        text1.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
+        text1.tag_configure('police1',font=('Helvetica',12,'bold'))
+        text1.config(state="normal")
+        #hosts=self.hosts
+
+        text1.insert(END,'\nPing : Testing ping reachability between ' + str(hosts[0]) + ' and ' + str(hosts[1]) + '\n\n','modif')
+        packets = 0
+        lost = 0
+        ploss = None
+        #if not hosts:
+        #print('hosts are not null')
+        #hosts = self.hosts
+        #print(hosts)
+        #output( '*** Ping: testing ping reachability\n' )
+        #text1.insert(END,'\n\n*** Ping: testing ping reachability\n\n','modif')
+        for node in hosts:
+            #output( '%s -> ' % node.name )
+            text1.insert(END,str(node.name) + ' ' + '-> ','police')
+            for dest in hosts:
+                if node != dest:
+                    opts = ''
+                    if timeout:
+                        opts = '-W %s' % timeout
+                    if dest.intfs:
+                        result = node.cmd('ping -c1 %s %s' % (opts, dest.IP()))
+                        if 'connect: Network is unreachable' in result:
+                            (sent,received) = (1,0)
+                        else:
+                            r = r'(\d+) packets transmitted, (\d+)( packets)? received'
+                            m = re.search(r,result)
+                            if m is None:
+                                #error( '*** Error: could not parse ping output: %s\n' % pingOutput)
+                                text1.insert(END,'*** Error: could not parse ping output: ' + str(result) + '\n','police')
+                                (sent,received)=(1,0)
+                            else:
+                                (sent,received) = (int(m.group(1)),int(m.group(2)))
+                                #sent, received = self._parsePing(result)
+                    else:
+                        sent, received = 0, 0
+                    packets += sent
+                    if received > sent:
+                        #error( '*** Error: received too many packets' )
+                        text1.insert(END,'*** Error: received too many packets','police')
+                        #error( '%s' % result )
+                        text1.insert(INSERT,str(result))
+                        node.cmdPrint('route')
+                        exit(1)
+                    lost += sent - received
+                    #output( ( '%s ' % dest.name ) if received else 'X ' )
+                    if received :
+                        text1.insert(INSERT,str(dest.name),'police1')
+                    else:
+                        text1.insert(INSERT,str('X'),'police1')
+            #output( '\n' )
+            text1.insert(INSERT,str('\n'))
+        if packets > 0:
+            ploss = 100.0 * lost / packets
+            received = packets - lost
+            #output( "*** Results: %i%% dropped (%d/%d received)\n" %
+                    #( ploss, received, packets ))
+            text1.insert(END,"*** Results: "+str(ploss)+' '+'dropped ('+str(received)+'/'+str(packets)+'received)\n','police')
+        else:
+            ploss = 0
+            #output( "*** Warning: No packets sent\n" )
+            text1.insert(END,"*** Warning: No packets sent\n",'police')
+        text1.config(state='disabled')
+        text1.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
         return ploss
 
     def create_buttons(self,window):
         abs=0;
         ord=0;
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
         for n in self.elements :
             cmd=(lambda t=n:self.activate_widget(t))
-            self.list_buttons[n]=Button(window) #switch , cursor , host
+            self.list_buttons[n]=Button(window,height=50,width=50,bg='white') #switch , cursor , host
             self.list_buttons[n].config(relief="raised")
             self.list_buttons[n].config(image=self.images[n],command=cmd)
             self.list_buttons[n].place(x=str(abs),y=str(ord))
-            ord+=90
-        bouton1=Button(window,text='Run',command=self.run)
+            ord+=60
+        bouton1=Button(window,text='Run',command=self.run,bg='white',width=3,font=helv36)
         bouton1.place(x=str(abs),y=550)
-        bouton2=Button(window,text='Stop',command=self.stop)
+        bouton2=Button(window,text='Stop',command=self.stop,bg='white',width=3,font=helv36)
         bouton2.place(x=str(abs),y=600)
         #print(self.list_buttons)
 
@@ -470,6 +715,8 @@ class Interface():
         self.legacyRouterOptions={}
         self.itemToName={}
         self.names=[]
+        self.preferences={"dpctl": "","ipBase": "10.0.0.0/8","netflow": {"nflowAddId": "0","nflowTarget": "","nflowTimeout": "600"},"openFlowVersions": {"ovsOf10": "1","ovsOf11": "0","ovsOf12": "0","ovsOf13": "0"},"sflow" : {"sflowHeader": "128","sflowPolling": "30","sflowSampling": "400","sflowTarget": ""},"startCLI": "0","switchType": "ovs","terminalType": "xterm"}
+        self.openFlowVersions=[]
 
     def selectItem(self,item):
         self.lastSelection=self.selection
@@ -728,6 +975,7 @@ class Interface():
         #hostname
         label_1=Label(frame1,text="Hostname :",width=20,font=("bold",10))
         label_1.place(x=1,y=20)
+
         namehost.set(self.hostOptions[self.selectedNode]['hostname'])
         entry_1=Entry(frame1,textvariable=namehost)
         entry_1.place(x=150,y=20)
@@ -944,7 +1192,7 @@ class Interface():
         global controller_address
         controller_address=StringVar()
         Options=['OpenFlow Reference','Remote Controller','In-Band Controller','OVS Controller']
-        optionsProtocol=['TCP','SSL']
+        optionsProtocol=['tcp','ssl']
         listProperties['controllerProtocol']=optionsProtocol[0]
         listProperties['controllerType']=Options[0]
 
@@ -1050,14 +1298,86 @@ class Interface():
     def logInformationsLink(self):
         setLogLevel( 'info' )
         newLinkOptions={}
-        newLinkOptions['loss']=linkEntries['loss'].get()
-        newLinkOptions['jitter']=linkEntries['jitter'].get()
-        newLinkOptions['speedup']=linkEntries['speedup'].get()
-        newLinkOptions['delay']=linkEntries['delay'].get()
-        newLinkOptions['bw']=linkEntries['bw'].get()
-        newLinkOptions['max_queue_size']=linkEntries['max_queue_size'].get()
-        self.links[self.selectedLink]['options']=newLinkOptions
-        info('New link details for ' + '=' + str(newLinkOptions) + '\n')
+        self.links[self.selectedLink]['options']={}
+        if(linkEntries['bw'].get() != ''):
+            try:
+                float(linkEntries['bw'].get())
+                newLinkOptions['bw']=float(linkEntries['bw'].get())
+                self.links[self.selectedLink]['options']['bw']=float(linkEntries['bw'].get())
+            except ValueError:
+                root=Toplevel()
+                text1=Text(root,height=200,width=200)
+                text1.config(state="normal")
+                text1.insert(INSERT,'Bandwidth should be a float')
+                text1.config(state='disabled')
+                text1.pack()
+
+        if(linkEntries['delay'].get() != ''):
+            try:
+                float(linkEntries['delay'].get())
+                newLinkOptions['delay']=float(linkEntries['delay'].get())
+                self.links[self.selectedLink]['options']['delay']=float(linkEntries['delay'].get())
+            except ValueError:
+                root=Toplevel()
+                text1=Text(root,height=200,width=200)
+                text1.config(state="normal")
+                text1.insert(INSERT,'Delay should be a float')
+                text1.config(state='disabled')
+                text1.pack()
+
+        if(linkEntries['loss'].get() != ''):
+            try:
+                float(linkEntries['loss'].get())
+                newLinkOptions['loss']=float(linkEntries['loss'].get())
+                self.links[self.selectedLink]['options']['loss']=float(linkEntries['loss'].get())
+            except ValueError:
+                root=Toplevel()
+                text1=Text(root,height=200,width=200)
+                text1.config(state="normal")
+                text1.insert(INSERT,'Loss should be a float')
+                text1.config(state='disabled')
+                text1.pack()
+
+        if(linkEntries['max_queue_size'].get() != ''):
+            try:
+                float(linkEntries['max_queue_size'].get())
+                newLinkOptions['max_queue_size']=float(linkEntries['max_queue_size'].get())
+                self.links[self.selectedLink]['options']['max_queue_size']=float(linkEntries['max_queue_size'].get())
+            except ValueError:
+                root=Toplevel()
+                text1=Text(root,height=200,width=200)
+                text1.config(state="normal")
+                text1.insert(INSERT,'Max queue size should be a float')
+                text1.config(state='disabled')
+                text1.pack()
+
+        if(linkEntries['jitter'].get() != ''):
+            try:
+                float(linkEntries['jitter'].get())
+                newLinkOptions['jitter']=float(linkEntries['jitter'].get())
+                self.links[self.selectedLink]['options']['jitter']=float(linkEntries['jitter'].get())
+            except ValueError:
+                root=Toplevel()
+                text1=Text(root,height=200,width=200)
+                text1.config(state="normal")
+                text1.insert(INSERT,'Jitter should be a float')
+                text1.config(state='disabled')
+                text1.pack()
+
+        #newLinkOptions['jitter']=linkEntries['jitter'].get()
+        if(linkEntries['speedup'].get() != ''):
+            try:
+                float(linkEntries['speedup'].get())
+                newLinkOptions['speedup']=float(linkEntries['speedup'].get())
+                self.links[self.selectedLink]['options']['speedup']=float(linkEntries['speedup'].get())
+            except ValueError:
+                root=TopLevel()
+                text1=Text(root,height=200,width=200)
+                text1.config(state="normal")
+                text1.insert(INSERT,'Speedup should be a float')
+                text1.config(state='disabled')
+                text1.pack()
+        info('New link details for ' + '=' + str(self.links[self.selectedLink]['options']) + '\n')
 
     def change(self,*args):
         print("enableNetFlow"+str(var_2.get())+'\n')
@@ -1153,7 +1473,7 @@ class Interface():
         dropDownMenu.place(x=130,y=130)
 
         #Controllers
-        listVariable["controllers"]=self.switchOptions[self.selectedNode]["controllers"] #controllers
+        listVariable["controllers"]=self.switchOptions[self.selectedNode]['options']['controllers'] #controllers
 
         #IP address
         label_5=Label(fen,text="IP Address :",width=20,font=("bold",10))
@@ -1204,13 +1524,77 @@ class Interface():
         self.switchOptions[self.selectedNode]['options']=newSwitchOptions
         info('New switch details for ' + str(newSwitchOptions['hostname']) + '=' + str(newSwitchOptions) + '\n')
 
+    def changehost(self,*args):
+        hostnames1['host0']=varhost.get()
+        hostnodes1[0]=self.name_host[hostnames1['host0']]
+
+    def changehost1(self,*args):
+        hostnames1['host1']=varhost1.get()
+        hostnodes1[1]=self.name_host[hostnames1['host1']]
+
+    def changeNumber(self,*args):
+        choosenNumber[0]=varnumber.get()
+
+    def pingpacket(self):
+        root=Toplevel()
+        global choosenNumber
+        choosenNumber=[1]
+        numbers=[1]
+        for i in range(2,21):
+            numbers.append(i)
+
+        global hostnodes1
+        global hostnames1
+        hostnames1={}
+
+        global varnumber
+        varnumber=StringVar()
+
+        global varhost
+        varhost=StringVar()
+
+        global varhost1
+        varhost1=StringVar()
+
+        #le nom de tous les hotes
+        name_hosts=[]
+        for host in self.name_host.keys():
+            name_hosts.append(host)
+
+        hostnames1['host0']=name_hosts[0]
+        hostnames1['host1']=name_hosts[0]
+
+        hostnodes1=[self.name_host[hostnames1['host0']],self.name_host[hostnames1['host1']]]
+        varhost.trace("w",self.changehost)
+        varhost1.trace("w",self.changehost1)
+        varnumber.trace("w",self.changeNumber)
+        varhost.set(hostnames1['host0'])
+        varhost1.set(hostnames1['host1'])
+        varnumber.set('1')
+        dropDownMenu=OptionMenu(root,varhost,*name_hosts)
+        dropDownMenu.place(x=0,y=50)
+
+        dropDownMenu1=OptionMenu(root,varhost1,*name_hosts)
+        dropDownMenu1.place(x=60,y=50)
+
+        dropDownMenu2=OptionMenu(root,varnumber,*numbers)
+        dropDownMenu2.place(x=120,y=50)
+
+        bouton=Button(root,text='OK',command=partial(self.pingpacket1,hostnames1,choosenNumber))
+        bouton.place(x=180,y=50)
+
     def changeNode(self,*args):
         node[0]=varname.get()
 
     def node_info(self):
         global node
         root=Toplevel()
-        root.geometry('500x500')
+        root.geometry('380x170')
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
+        label=Label(root,text='Nodes informations',font=helv36)
+        label.place(x=135,y=0)
+        label1=Label(root,text='Choose node',font=helv36)
+        label1.place(x=155,y=30)
         link_names=()
         names = tuple(self.names)
         for link in self.links.keys():
@@ -1227,9 +1611,9 @@ class Interface():
         dropdownmenu=OptionMenu(root,varname,*nodes_links)
         dropdownmenu.config(width=menuwidth)
         dropdownmenu.grid()
-        dropdownmenu.place(x=150,y=40)
+        dropdownmenu.place(x=95,y=60)
         bouton = Button(root,text='OK',command=self.node_info1)
-        bouton.place(x=150,y=100)
+        bouton.place(x=170,y=110)
 
     def node_info1(self):
         #cas switch
@@ -1288,50 +1672,50 @@ class Interface():
             item=self.widgetToItem[host]
             name_node=self.itemToName[item]
             if(node[0]==name_node):
-                print(self.hostOptions[host])
+                #print(self.hostOptions[host])
                 text1.insert(INSERT,'host Number : ' + str(self.hostOptions[host]['numhost'])+'\n')
                 text1.insert(INSERT,'hostname : ' + self.hostOptions[host]['hostname']+'\n')
                 text1.insert(INSERT,'Sched : ' + self.hostOptions[host]['options']['sched']+'\n')
-                print(self.hostOptions[host]['options']['cpu'])
+                #print(self.hostOptions[host]['options']['cpu'])
 
                 if(self.hostOptions[host]['options']['cpu']!=''):
-                     print('we are in cpu')
+                     #print('we are in cpu')
                      text1.insert(INSERT,'CPU : ' + self.hostOptions[host]['options']['cpu']+'\n')
 
                 if(self.hostOptions[host]['options']['ip']!=''):
-                    print('we are in ip')
+                    #print('we are in ip')
                     text1.insert(INSERT,'IP Address : ' + self.hostOptions[host]['options']['ip']+'\n')
 
                 if(self.hostOptions[host]['options']['defaultRoute']!=''):
-                    print('we are in default route')
+                    #print('we are in default route')
                     text1.insert(INSERT,'Default Route : ' + self.hostOptions[host]['options']['defaultRoute']+'\n')
 
                 if(self.hostOptions[host]['options']['cores']!=''):
-                    print('we are in cores')
+                    #print('we are in cores')
                     text1.insert(INSERT,'Cores : ' + self.hostOptions[host]['options']['cores']+'\n')
 
                 if(self.hostOptions[host]['options']['startCommand']!=''):
-                    print('we are in start command')
+                    #print('we are in start command')
                     text1.insert(INSERT,'start Command : ' + self.hostOptions[host]['options']['startCommand']+'\n')
 
                 if(self.hostOptions[host]['options']['stopCommand']!=''):
-                    print('we are in stop command')
+                    #print('we are in stop command')
                     text1.insert(INSERT,'stop Command : ' + self.hostOptions[host]['options']['stopCommand']+'\n')
 
                 if(self.hostOptions[host]['options']['vlanInterfaces']!=[]):
-                    print('we are in vlan interface')
+                    #print('we are in vlan interface')
                     text1.insert(INSERT,'VLAN Interfaces : ')
                     text1.insert(INSERT,self.hostOptions[host]['options']['vlanInterfaces'])
                     text1.insert(INSERT,'\n')
 
                 if(self.hostOptions[host]['options']['privateDirectory']!=[]):
-                    print('we are in private directories')
+                    #print('we are in private directories')
                     text1.insert(INSERT,'Private Directories : ')
                     text1.insert(INSERT,self.hostOptions[host]['options']['privateDirectory'])
                     text1.insert(INSERT,'\n')
 
                 if(self.hostOptions[host]['options']['externalInterfaces']!=[]):
-                    print('we are in external interfaces')
+                    #print('we are in external interfaces')
                     text1.insert(INSERT,'External Interfaces : ')
                     text1.insert(INSERT,self.hostOptions[host]['options']['externalInterfaces'])
                     text1.insert(INSERT,'\n')
@@ -1380,27 +1764,34 @@ class Interface():
                 return
 
         for link in self.links.keys():
+            #print('self.links')
+            #print(self.links)
             link_info = 'Link between ' + str(self.links[link]['src']) + ' and ' + str(self.links[link]['dest'])
             if(node[0]==link_info):
+                #print('we are in self.links.keys')
                 text1.insert(INSERT,"Link source : " + str(self.links[link]['src']) + '\n')
                 text1.insert(INSERT,"Link destination : " + str(self.links[link]['dest']) + '\n')
-                if(self.links[link]['options']['loss'] != ''):
-                    text1.insert(INSERT,'Loss : ' + str(self.links[link]['options']['loss']) + '\n')
+                text1.insert(INSERT,"Link type : " + str(self.links[link]['type']) + '\n')
 
-                if(self.links[link]['options']['jitter'] != ''):
-                    text1.insert(INSERT,'Jitter : ' + str(self.links[link]['options']['jitter']) + '\n')
+                if(self.links[link]['type'] == 'data' and self.links[link]['options'] != {} and self.links[link]['options']!= None):
+                    if('loss' in self.links[link]['options'].keys()):
+                        text1.insert(INSERT,'Loss : ' + str(self.links[link]['options']['loss']) + '\n')
 
-                if(self.links[link]['options']['speedup'] != ''):
-                    text1.insert(INSERT,'Speedup : ' + str(self.links[link]['options']['speedup']) + '\n')
+                    if('jitter' in self.links[link]['options'].keys()):
+                        text1.insert(INSERT,'Jitter : ' + str(self.links[link]['options']['jitter']) + '\n')
 
-                if(self.links[link]['options']['delay'] != ''):
-                    text1.insert(INSERT,'Delay : ' + str(self.links[link]['options']['delay'])+ '\n')
+                    if('speedup' in self.links[link]['options'].keys()):
+                        text1.insert(INSERT,'Speedup : ' + str(self.links[link]['options']['speedup']) + '\n')
 
-                if(self.links[link]['options']['bw'] != ''):
-                    text1.insert(INSERT,'Bandwidth : ' + str(self.links[link]['options']['bw'])+ '\n')
+                    if('delay' in self.links[link]['options'].keys()):
+                        text1.insert(INSERT,'Delay : ' + str(self.links[link]['options']['delay'])+ '\n')
 
-                if(self.links[link]['options']['max_queue_size'] != ''):
-                    text1.insert(INSERT,'Max queue size : ' + str(self.links[link]['options']['max_queue_size'])+ '\n')
+                    if('bw' in self.links[link]['options'].keys()):
+                        text1.insert(INSERT,'Bandwidth : ' + str(self.links[link]['options']['bw'])+ '\n')
+
+                    if('max_queue_size' in self.links[link]['options'].keys()):
+                        text1.insert(INSERT,'Max queue size : ' + str(self.links[link]['options']['max_queue_size'])+ '\n')
+
                 text1.config(state='disabled')
                 text1.pack()
                 return
@@ -1427,7 +1818,7 @@ class Interface():
         newPrefOptions['netflow']['nflowTimeout']=variables['nFlowTimeout'].get()
         newPrefOptions['netflow']['nflowAddId']=nFlowAddId.get()
         newPrefOptions['startCLI']=varStartCLI.get()
-        print("varStartCLI"+str(newPrefOptions['startCLI']))
+        #print("varStartCLI"+str(newPrefOptions['startCLI']))
         self.preferences=newPrefOptions
         #print("we are in log Informations preferences")
         #print(self.preferences)
@@ -1605,12 +1996,12 @@ class Interface():
             #bouton1=Button(self.canvas,image=self.images['Switch'])
             self.switchNumber+=1
             name_switch='s'+str(self.switchNumber) #s1
-            bouton1=Button(self.canvas,image=self.images['Switch'],text=name_switch,compound='top')
+            bouton1=Button(self.canvas,image=self.images['Switch'],text=name_switch,compound='top',bg='white')
             self.switchOptions[bouton1]={}
             self.switchOptions[bouton1]['numSwitch']=self.switchNumber
             self.switchOptions[bouton1]['nameSwitch']=name_switch
-            self.switchOptions[bouton1]['controllers']=[]
-            self.switchOptions[bouton1]['options']={"controllers": [],"hostname": name_switch,"nodenum":self.switchNumber,"switchType":"default",'stopCommand':'','sflow':0,'switchIP':'','dpid':'','dpctl':'','startCommand':'','netflow':0,'externalInterfaces':[]}
+            #self.switchOptions[bouton1]['controllers']=[]
+            self.switchOptions[bouton1]['options']={"controllers": [],"hostname": name_switch,"nodenum":self.switchNumber,"switchType":"Default",'stopCommand':'','sflow':0,'switchIP':'','dpid':'','dpctl':'','startCommand':'','netflow':0,'externalInterfaces':[]}
             self.name_switch.append(name_switch)
             id1=self.canvas.create_window((x1,y1),anchor='center',window=bouton1,tags='Switch')
             self.widgetToItem[bouton1]=id1
@@ -1627,7 +2018,7 @@ class Interface():
             self.hostNumber+=1
             #bouton2=Button(self.canvas,image=self.images['Host'],text=str(self.hostNumber),compound='top')
             name_host='h'+str(self.hostNumber) #h1
-            bouton2=Button(self.canvas,image=self.images['Host'],text=name_host,compound='top')
+            bouton2=Button(self.canvas,image=self.images['Host'],text=name_host,bg='white',compound='top')
             self.hostOptions[bouton2]={}
             #self.hostOptions[bouton2]['sched']='host'
             self.hostOptions[bouton2]['numhost']=self.hostNumber
@@ -1648,12 +2039,12 @@ class Interface():
             #bouton3=Button(self.canvas,image=self.images['Controller'])
             self.controllerNumber+=1
             name_controller='c'+str(self.controllerNumber)
-            bouton3=Button(self.canvas,image=self.images['Controller'],text=name_controller,compound='top')
+            bouton3=Button(self.canvas,image=self.images['Controller'],bg='white',text=name_controller,compound='top')
             id3=self.canvas.create_window((x1,y1),anchor='center',window=bouton3,tags='Controller')
             self.controllerOptions[bouton3]={}
             #self.controllerOptions[bouton3]['numController']=self.controllerNumber
             self.controllerOptions[bouton3]['hostname']=name_controller
-            self.controllerOptions[bouton3]['options']={'hostname':name_controller,'remotePort':6633,'controllerType':'OpenFlow Reference','controllerProtocol':'TCP','remoteIP':'127.0.0.1'}
+            self.controllerOptions[bouton3]['options']={'hostname':name_controller,'remotePort':6633,'controllerType':'OpenFlow Reference','controllerProtocol':'tcp','remoteIP':'127.0.0.1'}
             self.widgetToItem[bouton3]=id3
             self.itemToWidget[id3]=bouton3
             self.itemToName[id3]=name_controller
@@ -1666,7 +2057,7 @@ class Interface():
         elif(self.activeButton == 'LegacySwitch'):
             self.switchNumber+=1
             name_legacySwitch = 's' + str(self.switchNumber)
-            bouton4=Button(self.canvas,image=self.images['LegacySwitch'],text=name_legacySwitch,compound='top')
+            bouton4=Button(self.canvas,image=self.images['LegacySwitch'],text=name_legacySwitch,bg='white',compound='top')
             self.buttons_canevas[name_legacySwitch]=bouton4
             self.legacySwitchOptions[bouton4]={}
             self.legacySwitchOptions[bouton4]['name']=name_legacySwitch
@@ -1685,7 +2076,7 @@ class Interface():
             #print('we are in legacyRouter')
             self.switchNumber+=1
             name_legacyRouter = 'r' + str(self.switchNumber)
-            bouton5=Button(self.canvas,image=self.images['LegacyRouter'],text=name_legacyRouter,compound='top')
+            bouton5=Button(self.canvas,image=self.images['LegacyRouter'],text=name_legacyRouter,bg='white',compound='top')
             self.buttons_canevas[name_legacyRouter]=bouton5
             self.legacyRouterOptions[bouton5]={}
             self.legacyRouterOptions[bouton5]['name']=name_legacyRouter
@@ -1745,7 +2136,8 @@ class Interface():
             src = self.links[link]['src']
             target = self.links[link]['dest']
             #print("target save topology: "+str(target))
-            options=self.links[link]['options']
+            if(self.links[link]['options'] == None):
+                options={}
             savingLink={'src':src,'dest':target,'options':options}
             if (self.links[link]['type'] == 'data'):
                 savinglinks.append(savingLink)
@@ -1761,13 +2153,6 @@ class Interface():
         for bouton in self.list_buttons.values():
             bouton.config(state='disabled')
         self.start()
-
-    def singleSwitchTopology(self):
-        switch = self.addSwitch('s1')
-        # Python's range(N) generates 0..N-1
-        for h in range(n):
-            host = self.addHost('h%s' % (h + 1))
-            self.addLink(host, switch)
 
     def convertJsonUnicode(self, text):
         "Some part of Mininet don't like Unicode"
@@ -1813,7 +2198,7 @@ class Interface():
         controllers=topologyLoaded['controllers']
         if(len(controllers)!=0):
             for j in range(0,len(controllers)):
-                options=controllers[i]['opts']
+                options=controllers[j]['opts']
                 controller_name=options['hostname']
                 x2=controllers[j]['x']
                 y2=controllers[j]['y']
@@ -1879,7 +2264,7 @@ class Interface():
         if(len(switches)!=0):
             for i in range(0,len(switches)):
                 options_switch=switches[i]['opts']
-                print(options_switch)
+                #print(options_switch)
                 if (options_switch['switchType'] == 'LegacySwitch'):
                     self.switchNumber+=1
                     legacyswitch_name = options_switch['hostname']
@@ -1925,22 +2310,24 @@ class Interface():
 
         #load Links
         links=topologyLoaded['links']
-        print('nameToItem'+str(self.nameToItem))
-        print('links'+str(links))
+        #print('nameToItem'+str(self.nameToItem))
+        #print('links'+str(links))
         if(len(links)!=0):
              for i in range(0,len(links)):
                  src = links[i]['src'] #nom de SRC
                  dst=links[i]['dest'] #nom de DEST
-                 print('item_src'+str(self.nameToItem[src]))
-                 print('item_dest'+str(self.nameToItem[dst]))
+                 #print('item_src'+str(self.nameToItem[src]))
+                 #print('item_dest'+str(self.nameToItem[dst]))
                  srcx,srcy=self.canvas.coords(self.nameToItem[src]); #coordonnées de la source
                  destx,desty=self.canvas.coords(self.nameToItem[dst]);
                  self.link=self.canvas.create_line(srcx,srcy,destx,desty,width=4,fill='blue',tag='link')
                  self.canvas.itemconfig(self.link,tags=self.canvas.gettags(self.link)+('data',))
                  self.links[self.link]={}
+                 self.links[self.link]['options']={}
                  self.links[self.link]['src']=src
                  self.links[self.link]['dest']=dst
                  self.links[self.link]['type']='data'
+                 #print('links[i][options] = ' + str(links[i]['options']))
                  self.links[self.link]['options']=links[i]['options']
                  self.DataLinkBindings()
                  self.liens.append(self.link)
@@ -1981,7 +2368,7 @@ class Interface():
             self.links[self.link]['src']=self.legacyRouterOptions[w]['name']
         elif('LegacySwitch' in tags):
             self.links[self.link]['src']=self.legacySwitchOptions[w]['name']
-        self.links[self.link]['options']={'loss':'','jitter':'','speedup':'','delay':'','bw':'','max_queue_size':''}
+        self.links[self.link]['options']=None
         self.links[self.link]['type']=None
         #self.liens.append(self.link)
         #self.DataLinkBindings()
@@ -2022,9 +2409,9 @@ class Interface():
     def linkUp(self):
         link = self.selectedLink
         src = self.links[link]['src']
-        print('src '+str(src))
+        #print('src '+str(src))
         dst = self.links[link]['dest']
-        print('dst ' + str(dst))
+        #print('dst ' + str(dst))
         self.net.configLinkStatus(src,dst,'up')
         self.canvas.itemconfig(link, dash=())
 
@@ -2109,29 +2496,40 @@ class Interface():
             controller_name=self.itemToName[target]
             switchoptions=self.switchOptions[src]['options']
             switchoptions['controllers'].append(controller_name)
-
+            print('finishlink')
+            print(self.switchOptions)
+            print('\n')
         self.link=None
         self.linkWidget=None
 
     def dumpNodes(self,nodes):
         root=Toplevel()
-        root.title('Dump')
-        text1=Text(root,height=100,width=200)
+        root.title('Net')
+        text1=Text(root,height=10,width=60)
+        scroll = Scrollbar(root, command=text1.yview)
+        #scroll1=Scrollbar(root,command=text1.xview)
+        text1.configure(yscrollcommand=scroll.set)
+        #text1.configure(xscrollcommand=scroll1.set)
+        text1.tag_configure('big',justify='center',font=('Helvetica',16,'bold'),foreground='RoyalBlue1',underline=1)
+        text1.tag_configure('color',font=('Helvetica',11,'bold'))
         text1.config(state="normal")
+        text1.insert(END,'\nLinks between nodes\n\n','big')
         for node in nodes:
-            text1.insert(INSERT,str(node.name)+' ')
+            text1.insert(INSERT,str(node.name)+' ','color')
             for intf in node.intfList():
-                text1.insert(INSERT,str(intf)+':')
+                text1.insert(INSERT,str(intf)+':','color')
                 if intf.link:
                     intfs = [ intf.link.intf1, intf.link.intf2 ]
                     intfs.remove( intf )
-                    text1.insert(INSERT,intfs[0])
-                    text1.insert(INSERT,' ')
+                    text1.insert(INSERT,intfs[0],'color')
+                    text1.insert(INSERT,' ','color')
                 else:
-                    text1.insert(INSERT,' ')
+                    text1.insert(INSERT,' ','color')
             text1.insert(INSERT,'\n')
         text1.config(state='disabled')
-        text1.pack()
+        text1.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
+        #scroll1.pack(side=BOTTOM,fill=X)
 
     def dumpNet(self):
         nodes=self.net.controllers + self.net.switches + self.net.hosts
@@ -2157,6 +2555,9 @@ class Interface():
                     options = self.switchOptions[widget]
                     switch_options=options['options']
                     switchControllers = []
+                    #print('def start')
+                    #print(self.switchOptions)
+                    #print('\n')
                     for ctrl in switch_options['controllers']:
                         switchControllers.append(self.net.get(ctrl))
                     info(name+ ' ')
@@ -2212,14 +2613,14 @@ class Interface():
 
                 if 'Switch' in tags:
                     switch_opts = self.switchOptions[widget]['options']
-                    if ('netflow' in switch_opts and len(switch_opts['netflow'])>0):
-                        if switch_opts['netflow'] == '1':
+                    if ('netflow' in switch_opts):
+                        if switch_opts['netflow'] == 1:
                             info( name + ' has Netflow enabled\n' )
                             nflowSwitches = nflowSwitches + ' -- set Bridge ' + name + ' netflow=@MiniEditNF'
                             nflowEnabled=True
             if nflowEnabled:
                 nflowCmd = 'ovs-vsctl -- --id=@MiniEditNF create NetFlow '+ 'target=\\\"'+nflowValues['nflowTarget']+'\\\" '+ 'active-timeout='+nflowValues['nflowTimeout']
-                if nflowValues['nflowAddId'] == '1':
+                if nflowValues['nflowAddId'] == 1:
                     nflowCmd = nflowCmd + ' add_id_to_interface=true'
                 else:
                     nflowCmd = nflowCmd + ' add_id_to_interface=false'
@@ -2243,8 +2644,8 @@ class Interface():
 
                 if 'Switch' in tags:
                     switch_opts1 = self.switchOptions[widget]['options']
-                    if ('sflow' in switch_opts1 and len(switch_opts1['sflow'])>0):
-                        if switch_opts1['sflow'] == '1':
+                    if ('sflow' in switch_opts1):
+                        if switch_opts1['sflow'] == 1:
                             info( name+' has sflow enabled\n' )
                             sflowSwitches = sflowSwitches + '-- set Bridge' + name + 'sflow=@MiniEditSF'
                             sflowEnabled=True
@@ -2266,12 +2667,12 @@ class Interface():
     def changehostname(self,*args):
         hostnames['host0']=var_name.get()
         host_nodes[0]=self.name_host[hostnames['host0']]
-        print("host_nodes"+str(host_nodes)+'\n')
+        #print("host_nodes"+str(host_nodes)+'\n')
 
     def changehostname1(self,*args):
         hostnames['host1']=var_name1.get()
         host_nodes[1]=self.name_host[hostnames['host1']]
-        print("host_nodes 1 " + str(host_nodes) + '\n')
+        #print("host_nodes 1 " + str(host_nodes) + '\n')
 
     def pingpair(self):
         global host_nodes
@@ -2282,9 +2683,15 @@ class Interface():
         name_hosts=()
         for host in self.name_host.keys():
             name_hosts=name_hosts+(str(host),)
-        print(name_hosts)
+        #print(name_hosts)
         root=Toplevel()
-        root.geometry("700x700")
+        root.geometry('300x150')
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
+        label=Label(root,text='Available nodes',font=helv36)
+        label.place(x=100,y=0)
+
+        label1=Label(root,text='Choose nodes',font=helv36)
+        label1.place(x=110,y=30)
         hostnames['host0']=name_hosts[0]
         hostnames['host1']=name_hosts[0]
         host_nodes=[self.name_host[hostnames['host0']],self.name_host[hostnames['host1']]]
@@ -2295,13 +2702,13 @@ class Interface():
         var_name.set(name_hosts[0])
         var_name1.set(name_hosts[0])
         dropDownMenu=OptionMenu(root,var_name,*name_hosts)
-        dropDownMenu.place(x=350,y=110)
+        dropDownMenu.place(x=85,y=60)
         dropDownMenu1=OptionMenu(root,var_name1,*name_hosts)
-        dropDownMenu1.place(x=500,y=110)
+        dropDownMenu1.place(x=175,y=60)
         #hosts_nodes=[self.name_host[hostnames['host0']],self.name_host[hostnames['host1']]]
         #cmd = lambda arg1=hosts_nodes : self.pinghosts(arg1,timeout=None)
-        bouton = Button(root,text='OK',command=partial(self.pinghosts,host_nodes))
-        bouton.place(x=300,y=600)
+        bouton = Button(root,text='OK',command=partial(self.pinghosts1,host_nodes))
+        bouton.place(x=135,y=100)
 
     def stop_net( self ):
         if self.net is not None:
@@ -2339,7 +2746,7 @@ class Interface():
 
         self.buildNodes(net)
         self.buildLinks(net)
-
+        info('\n')
         net.build()
         return net
 
@@ -2361,11 +2768,8 @@ class Interface():
             name=str(self.itemToName[item])
 
             if 'Switch' in tags:
-                #print("we found switch in tags")
                 options = self.switchOptions[self.itemToWidget[item]]
                 switch_options=options['options']
-                #print("switch_options:"+ str(switch_options))
-
                 # Create switch class
                 switchClass = customOvs
                 switch_properties={}
@@ -2400,24 +2804,25 @@ class Interface():
 
                 else:
                     #print("switch type:" + switch_options['switchType'])
+                    #print('\n')
+                    #print('It s custom OVS\n')
                     switchClass = customOvs
 
                 if switchClass == customOvs:
                     # Set OpenFlow versions
                     self.openFlowVersions = []
-                    if self.preferences['openFlowVersions']['ovsOf10'] == '1':
+                    if self.preferences['openFlowVersions']['ovsOf10'] == 1:
                         self.openFlowVersions.append('OpenFlow10')
-                    if self.preferences['openFlowVersions']['ovsOf11'] == '1':
+                    if self.preferences['openFlowVersions']['ovsOf11'] == 1:
                         self.openFlowVersions.append('OpenFlow11')
-                    if self.preferences['openFlowVersions']['ovsOf12'] == '1':
+                    if self.preferences['openFlowVersions']['ovsOf12'] == 1:
                         self.openFlowVersions.append('OpenFlow12')
-                    if self.preferences['openFlowVersions']['ovsOf13'] == '1':
+                    if self.preferences['openFlowVersions']['ovsOf13'] == 1:
                         self.openFlowVersions.append('OpenFlow13')
                     protocolList = ",".join(self.openFlowVersions)
                     switch_properties['protocols'] = protocolList
-                #print("switchclass\n")
-                #print(switchClass)
                 newSwitch = net.addSwitch(name,cls=switchClass,**switch_properties)
+                self.nameswitch[name]=newSwitch
 
                 #Setting IP address
                 if switchClass == CustomUserSwitch:
@@ -2428,36 +2833,34 @@ class Interface():
                         newSwitch.setSwitchIP(switch_options['switchIP'])
 
                 # Attach external interfaces
-                if 'externalInterfaces' in switch_options :
-                    print("we are in external interfaces")
+                if ('externalInterfaces' in switch_options and len(switch_options['externalInterfaces'])>0):
                     for extInterface in switch_options['externalInterfaces']:
                         if self.checkIntf(extInterface):
                             Intf(extInterface,node=newSwitch)
 
             elif 'LegacySwitch' in tags:
                 newSwitch = net.addSwitch(name,cls=LegacySwitch)
-                #print("legacyswitch")
-                #print(newSwitch)
+                self.nameswitch[name]=newSwitch
 
             elif 'LegacyRouter' in tags:
                 newhost = net.addHost(name,cls=LegacyRouter)
+                self.name_host[name]=newhost
+                self.hosts.append(newhost)
 
             elif 'host' in tags:
                 options = self.hostOptions[self.itemToWidget[item]]
                 host_options=options['options']
+
                 ip = None
                 defaultRoute = None
                 if('defaultRoute' in host_options and len(host_options['defaultRoute'])>0):
                     defaultRoute='via' + host_options['defaultRoute']
-                    #print("setting default route")
                 if ('ip' in host_options and len(host_options['ip'])>0):
                     ip = host_options['ip']
-                    #print("setting ip 1")
                 else:
                     nodeNum = self.hostOptions[self.itemToWidget[item]]['numhost']
                     ipBaseNum, prefixLen=netParse(self.preferences['ipBase'])
                     ip=ipAdd(i=nodeNum, prefixLen=prefixLen, ipBaseNum=ipBaseNum)
-                    #print("we have sett ipppp")
 
                 # Create correct host class
                 if ('cores' in host_options and len(host_options['cores'])>0) or ('cpu' in host_options and len(host_options['cpu'])>0):
@@ -2474,26 +2877,35 @@ class Interface():
                 debug(hostCls,'\n')
 
                 hostnew = net.addHost(name,cls=hostCls,ip=ip,defaultRoute=defaultRoute)
+                # print('hostnew\n')
+                # print(hostnew)
+                # print('name'+name+'\n')
+                # print('cls host\n')
+                # print(hostCls)
+                # print('iphost:'+ip+'\n')
+                # print('defaultroute')
+                # print(defaultRoute)
+
                 self.hosts.append(hostnew)
                 self.name_host[name]=hostnew
 
                 # Set the CPULimitedHost specific options
                 if ('cores' in host_options and len(host_options['cores'])>0):
                     newHost.setCPUs(cores = host_options['cores'])
-                    #print('cooores')
+                    #print('cooores host\n')
                 if ('cpu' in host_options and len(host_options['cpu'])>0):
                     newHost.setCPUFrac(f=host_options['cpu'], sched=host_options['sched'])
-                    #print('cpuuu')
+                    #print('cpuuu host\n')
 
                 # Attach external interfaces
-                if 'externalInterfaces' in host_options:
-                    print("we are in external Interface host")
+                if ('externalInterfaces' in host_options and len(host_options['externalInterfaces'])>0):
+                    #print("external Interface host")
                     for extInterface in host_options['externalInterfaces']:
                         if self.checkIntf(extInterface):
+                            #print("external Interface host")
                             Intf(extInterface,node=newHost)
 
-                if 'vlanInterfaces' in host_options:
-                    if len(host_options['vlanInterfaces']) > 0:
+                if ('vlanInterfaces' in host_options and len(host_options['vlanInterfaces'])>0):
                         info( 'Checking that OS is VLAN prepared\n' )
                         self.pathCheck('vconfig', moduleName='vlan package')
                         moduleDeps( add='8021q' )
@@ -2502,26 +2914,44 @@ class Interface():
             elif 'Controller' in tags:
                 options = self.controllerOptions[self.itemToWidget[item]]
                 controller_options = options['options']
+                # print('controller_options')
+                # print(controller_options)
+                # print('\n')
 
                 controllerType = controller_options['controllerType']
                 if ('controllerProtocol' in controller_options and len(controller_options['controllerProtocol'])>0):
                     controllerProtocol = controller_options['controllerProtocol']
+                    # print('controllerProtocol'+controllerProtocol)
+                    # print('\n')
                 else :
-                    controllerProtocol = 'TCP'
-                    controller_options['controllerProtocol'] = 'TCP'
+                    controllerProtocol = 'tcp'
+                    controller_options['controllerProtocol'] = 'tcp'
 
                 controllerIP = str(controller_options['remoteIP'])
                 controllerPort = int(controller_options['remotePort'])
+                #print("controllerPort :" + str(controllerPort))
 
                 info('Getting controller selection:' + str(controllerType)+'\n')
                 if controllerType == 'Remote Controller':
-                    net.addController(name=str(name),controller=RemoteController,ip=str(controllerIP),protocol=str(controllerProtocol),port=controllerPort)
+                    control1=net.addController(name=name,controller=RemoteController,ip=controllerIP,protocol=controllerProtocol,port=int(controllerPort))
+                    self.namecontroller[name]=control1
                 elif controllerType == 'In-Band Controller':
-                    net.addController(name=str(name),controller=InbandController,ip=str(controllerIP),protocol=str(controllerProtocol),port=controllerPort)
+                    control2=net.addController(name=name,controller=InbandController,ip=controllerIP,protocol=controllerProtocol,port=int(controllerPort))
+                    self.namecontroller[name]=control2
                 elif controllerType == 'OVS Controller':
-                    net.addController(name=str(name),controller=OVSController,ip=str(controllerIP),protocol=str(controllerProtocol),port=controllerPort)
+                    control3=net.addController(name=name,controller=OVSController,protocol=controllerProtocol,port=int(controllerPort))
+                    self.namecontroller[name]=control3
                 else:
-                    net.addController(name=str(name),controller=Controller,ip=str(controllerIP),protocol=str(controllerProtocol),port=controllerPort)
+                    control4=net.addController(name=name,controller=Controller,protocol=controllerProtocol,port=int(controllerPort))
+                    # print('namecontrol'+name)
+                    # print(Controller)
+                    # print('\n')
+                    # print('controllerProtocol'+controllerProtocol)
+                    # print('controllerPort'+str(controllerPort))
+                    # print('\n')
+                    # print(control4)
+
+                    self.namecontroller[name]=control4
             else:
                 raise Exception( "Cannot create mystery node: " + name )
 
@@ -2532,12 +2962,20 @@ class Interface():
         for link in self.links.keys():
             tags = self.canvas.gettags(link)
             if 'data' in tags:
+                #print('we are in data link\n')
                 src=self.links[link]['src']
+                #print('src'+src+'\n')
                 dst=self.links[link]['dest']
+                #print('dst'+dst+'\n')
                 linkopts=self.links[link]['options']
+                #print('linkopts')
+                #print(linkopts)
                 if linkopts:
+                    #print(linkopts)
+                    #print('linkopts')
                     net.addLink(src,dst,cls=TCLink, **linkopts)
                 else:
+                    #print('linkoptions are none\n')
                     net.addLink(src,dst)
 
     def netImages(self):
@@ -2547,12 +2985,12 @@ class Interface():
         img4=PhotoImage(file="/home/user/Desktop/graph/line.png")
         img5=PhotoImage(file="/home/user/Desktop/graph/legacyRouter.png")
         img6=PhotoImage(file="/home/user/Desktop/graph/legacyswitch.png")
-        img1_mini=img1.subsample(7,8)
-        img2_mini=img2.subsample(3,4)
-        img3_mini=img3.subsample(4,4)
-        img4_mini=img4.subsample(4,4)
-        img5_mini=img5.subsample(11,8)
-        img6_mini=img6.subsample(3,3)
+        img1_mini=img1.subsample(15,15)
+        img2_mini=img2.subsample(7,7)
+        img3_mini=img3.subsample(8,8)
+        img4_mini=img4.subsample(7,7)
+        img5_mini=img5.subsample(16,16)
+        img6_mini=img6.subsample(6,6)
         dict_images={'Switch': img1_mini,'Controller':img2_mini,'Host':img3_mini,'Link':img4_mini,'LegacyRouter':img5_mini,'LegacySwitch':img6_mini}
         return dict_images
 
@@ -2561,7 +2999,7 @@ def main():
     fenetre= Tk()
     fenetre.title('New Miniedit')
     fenetre['bg']="white"
-    fenetre.geometry("1000x1000+350+400")
+    fenetre.geometry("1000x1000")
 
     interface = Interface(fenetre)
     fenetre.mainloop()
