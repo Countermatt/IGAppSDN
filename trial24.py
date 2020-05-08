@@ -9,8 +9,10 @@ from tkFont import Font
 import tkFileDialog
 import logging
 from net import Mininet, VERSION
+import matplotlib.pyplot as plt
 #from Tkinter import filedialog as tkFileDialog
 from util import netParse,ipAdd
+from link import Link
 from time import sleep
 from link import TCLink, Intf, Link
 from log import info
@@ -20,6 +22,7 @@ from net import Mininet, VERSION
 from util import netParse, ipAdd, quietRun
 from util import buildTopo
 from util import custom, customClass
+from util import waitListening
 from term import makeTerm, cleanUpScreens
 from node import Controller, RemoteController, NOX, OVSController
 from node import CPULimitedHost, Host, Node
@@ -144,16 +147,36 @@ class Interface():
         self.source={}
         self.hosts=[]
         self.nameToItem={}
-        #self.dest={}
         self.name_host={}
+        self.link_object={}
         self.canvas=self.create_canvas(window)
         self.elements=['Switch','Host','Link','LegacyRouter','LegacySwitch','Controller']
         self.nodePref = {'Switch':'s','Host':'h','LegacyRouter':'r','LegacySwitch':'s','Controller':'c'}
         self.images=self.netImages()
         self.create_buttons(window)
-        #self.make_draggable()
-        #self.movable_buttons()
-        #self.addNodeToCanvas('Switch',50,50)
+
+        self.s = ttk.Style()
+        #self.s.configure('TFrame', background='yellow')
+
+        self.s.configure('Frame1.TFrame',background='red')
+        self.s.configure('Frame2.TFrame',background='blue')
+        self.s.configure('Frame3.TFrame',background='snow')
+
+        self.systemOnglet = ttk.Notebook(window,width=1500)
+        self.systemOnglet.place(x='55',y='0')
+
+        self.firstOnglet = ttk.Frame(self.systemOnglet,width=1500,height=1500,style='Frame1.TFrame')
+        self.firstOnglet.place(x='0',y='0')
+        self.systemOnglet.add(self.firstOnglet,text='Topologie')
+
+        self.secondOnglet = ttk.Frame(self.systemOnglet,width=1500,height=1500,style='Frame2.TFrame')
+        self.secondOnglet.place(x='30',y='0')
+        self.systemOnglet.add(self.secondOnglet,text='Tests de performance')
+
+        self.thirdOnglet = ttk.Frame(self.systemOnglet,width=1500,height=1500,style='Frame3.TFrame')
+        self.thirdOnglet.place(x='60',y='0')
+        self.systemOnglet.add(self.thirdOnglet,text='Contrôleurs SDN')
+
 
     def create_menu_bar(self,window):
         mainmenu = Menu(window)
@@ -188,6 +211,9 @@ class Interface():
         sousmenu4.add_command(label="Nodes and links informations",font=helv36,command=self.node_info)
         sousmenu4.add_command(label="Ping packet",font=helv36,command=self.pingpacket)
         sousmenu4.add_command(label='Preferences informations',font=helv36,command=self.preferencesinformations)
+        sousmenu4.add_command(label='ip a',font=helv36,command=self.ipa)
+        sousmenu4.add_command(label='links',font=helv36,command=self.linkinfo)
+        sousmenu4.add_command(label='Choose server and client',font=helv36,command=self.chooseServerClient)
         mainmenu.add_cascade(label='Command',font=helv36,menu=sousmenu4)
 
         sousmenu5=Menu(mainmenu,bg='white',tearoff=0)
@@ -383,13 +409,14 @@ class Interface():
          for host in self.name_host.keys():
               name_hosts=name_hosts+(str(host),)
 
+         print(name_hosts)
+
          root=Toplevel()
          root.geometry("700x700")
 
          # host_names contient les noms du 1er host se trouvant dans name_hists
          host_names['host0']=name_hosts[0]
          host_names['host1']=name_hosts[0]
-
 
          hostnodes=[self.name_host[host_names['host0']],self.name_host[host_names['host1']]]
 
@@ -493,6 +520,167 @@ class Interface():
         text1.pack()
         return result
 
+    def ipeerf( self, hosts, l4Type, udpBw,seconds,port,timeServer,fichier):
+        #hosts = hosts or [ self.hosts[ 0 ], self.hosts[ -1 ] ]
+        print('l4Tyyyyyype'+l4Type[0])
+        root1=Toplevel()
+        text2=Text(root1,height=100,width=200)
+        text2.config(state="normal")
+
+        root=Toplevel()
+        text1=Text(root,height=100,width=200)
+        text1.config(state="normal")
+        assert len( hosts ) == 2
+        client, server = hosts
+        # # output( '*** Iperf: testing', l4Type, 'bandwidth between',
+        # #         client, 'and', server, '\n' )
+        text1.insert(INSERT,'*** Iperf: testing '+str(l4Type[0])+' bandwidth between '+str(client.name)+ ' and '+str(server.name)+ '\n')
+        server.cmd( 'killall -9 iperf' )
+        # print(port)
+        # print('\n')
+        port1 = int(port.get())
+
+        #serveur
+        iperfArgs = 'iperf -p %d' % port1
+        timeServer1 = int(timeServer.get())
+        iperfArgs += ' -i %s '% timeServer1
+        bwArgs = '-b ' + udpBw.get() + ' '
+        if l4Type[0] == 'UDP':
+             print('l4typeee : udppp')
+             iperfArgs += '-u '
+             bwArgs = '-b ' + udpBw.get() + ' '
+        elif l4Type[0] != 'TCP':
+        #     raise Exception( 'Unexpected l4 type: %s' % l4Type )
+              text1.insert(INSERT,'Unexpected l4 type : ' + str(l4Type[0]))
+              return
+        # # if fmt:
+        # #     iperfArgs += '-f %s ' % fmt
+        server.sendCmd(iperfArgs + '-s')
+        #client
+        iperfArgs1='iperf -p %d ' % port1
+        bwArgs1 = '-b ' + udpBw.get() + ' '
+        if l4Type[0] == 'UDP':
+             print('iperfArgs1:clieeent')
+             iperfArgs1 += '-u '
+             bwArgs1 = '-b ' + udpBw.get() + ' '
+        elif l4Type[0] != 'TCP':
+              text1.insert(INSERT,'Unexpected l4 type : ' + str(l4Type[0]))
+              return
+
+        if l4Type[0] == 'TCP':
+            if not waitListening( client, server.IP(), port1):
+                # raise Exception( 'Could not connect to iperf on port %d'
+                #                  % port )
+                text1.insert(INSERT,'Could not connect to iperf on port ' + port.get())
+                return
+        seconds1 = int(seconds.get())
+        cliout = client.cmd( iperfArgs1 + '-t %d -c ' % seconds1 +
+                             server.IP() + ' ' + bwArgs1)
+        text1.insert(INSERT,'Client output: ' + cliout + '\n')
+        text1.config(state='disabled')
+        text1.pack(side=LEFT)
+        servout = ''
+        # We want the last *b/sec from the iperf server output
+        # for TCP, there are two of them because of waitListening
+        count = 2 if l4Type[0] == 'TCP' else 1
+        while len( re.findall( '/sec', servout ) ) < count:
+            servout += server.monitor( timeoutms=5000 )
+        server.sendInt()
+        servout += server.waitOutput()
+        #debug( 'Server output: %s\n' % servout )
+        text2.insert(INSERT,'Server output: ' + servout + '\n')
+        text2.config(state='disabled')
+        text2.pack(side=LEFT)
+        file1 = open(fichier.get(),'w')
+        file1.write(servout)
+        file1.close()
+        if(l4Type[0] == 'TCP'):
+            file=open(fichier.get(),'r')
+            lines = file.readlines()
+            for line in lines:
+                if 'sec' not in line:
+                    lines.remove(line)
+
+            for i in range(0,4):
+                lines.remove(lines[0])
+
+            for j in range(0,len(lines)):
+                lines[j]=lines[j][6:38]
+
+            lines.remove(lines[len(lines)-1])
+            print(lines)
+            print('\n')
+            abscisse = []
+            ordonnee = []
+
+            for j in range(0,len(lines)):
+                abscisse.append(float(lines[j][5:9]))
+                ordonnee.append(float(lines[j][27:32]))
+
+            print(abscisse)
+            print('\n')
+            print(ordonnee)
+
+            plt.plot(abscisse,ordonnee)
+            plt.axis([min(abscisse),max(abscisse)+1,0, max(ordonnee)+1])
+            plt.xlabel('time')
+            plt.ylabel('bandwidth')
+            plt.show()
+
+            file.close()
+        elif(l4Type[0] == 'UDP'):
+            file2=open(fichier.get(),'r')
+            lines2 = file2.readlines()
+            for line in lines2:
+                if 'sec' not in line:
+                    lines2.remove(line)
+
+            #print(lines2)
+
+            for i in range(0,3):
+                 lines2.remove(lines2[0])
+
+            lines2.remove(lines2[4])
+            #print(lines2)
+            #print('\n')
+
+            lines2.remove(lines2[len(lines2)-1])
+
+            # lines2.remove(lines2[len(lines2)-2])
+
+            for j in range(0,len(lines2)):
+                lines2[j]=lines2[j][6:38]
+
+            print(lines2)
+
+            lines2.remove(lines2[1])
+
+            abscisse2=[]
+            ordonnee2=[]
+            for j in range(0,len(lines2)):
+                abscisse2.append(float(lines2[j][5:9]))
+                ordonnee2.append(float(lines2[j][27:32]))
+
+            print(abscisse2)
+            print(ordonnee2)
+
+            plt.plot(abscisse2,ordonnee2)
+            plt.axis([min(abscisse2),max(abscisse2)+1,0, max(ordonnee2)+1])
+            plt.xlabel('time')
+            plt.ylabel('bandwidth')
+            plt.show()
+
+            file2.close()
+            # print(abscisse2)
+            # print('\n')
+            # print(ordonnee2)
+
+        # result = [ self._parseIperf( servout ), self._parseIperf( cliout ) ]
+        # if l4Type == 'UDP':
+        #     result.insert( 0, udpBw )
+        # output( '*** Results: %s\n' % result )
+        # return result
+
     def pinghosts(self,hosts=None,timeout=None ):
         root=Toplevel()
         text1=Text(root,height=10,width=80)
@@ -567,6 +755,99 @@ class Interface():
         text1.pack(side=LEFT)
         scroll.pack(side=RIGHT,fill=Y)
         return ploss
+
+    def changenode(self,*args):
+        name1[0]=varnode.get()
+
+    def ipa(self):
+        global node1
+        global name1
+
+        listname=[]
+        for switch in self.nameswitch.keys():
+            listname.append(switch)
+        for host in self.name_host.keys():
+            listname.append(host)
+
+        name1=[listname[0]]
+
+        global varnode
+        varnode=StringVar()
+        varnode.set(listname[0])
+        varnode.trace("w",self.changenode)
+
+        root=Toplevel()
+        text1=Text(root,height=10,width=80)
+        scroll = Scrollbar(root, command=text1.yview)
+        text1.configure(yscrollcommand=scroll.set)
+        text1.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        text1.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
+        text1.tag_configure('police1',font=('Helvetica',12,'bold'))
+        text1.config(state="normal")
+        dropdownmenu = OptionMenu(root,varnode,*listname)
+        dropdownmenu.place(x=20,y=30)
+        bouton=Button(root,text='OK',command=partial(self.ipa1,name1))
+        bouton.place(x=80,y=30)
+        text1.config(state='disabled')
+        text1.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
+
+    def ipa1(self,names):
+        root=Toplevel()
+        text1=Text(root)
+        scroll = Scrollbar(root, command=text1.yview)
+        text1.configure(yscrollcommand=scroll.set)
+        text1.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        text1.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
+        text1.tag_configure('police1',font=('Helvetica',12,'bold'))
+        text1.config(state="normal")
+        if names[0] in self.nameswitch.keys():
+            node2=self.nameswitch[names[0]]
+            links, _err, _result = node2.pexec( 'ip link show' )
+            text1.insert(END,links)
+            text1.config(state='disabled')
+            text1.pack(side=LEFT)
+            scroll.pack(side=RIGHT,fill=Y)
+            return
+        elif names[0] in self.name_host.keys():
+            node2=self.name_host[names[0]]
+            links, _err, _result = node2.pexec('ip link show')
+            text1.insert(END,links)
+            text1.config(state='disabled')
+            text1.pack(side=LEFT)
+            scroll.pack(side=RIGHT,fill=Y)
+
+    def changename(self):
+        name3[0]= varname1.get()
+
+    def changename1(self):
+        name4[0]=varname2.get()
+
+    def linkinfo(self):
+        listlinks=[]
+        root=Toplevel()
+        for link in self.links.keys():
+            if(self.links[link]['type'] == 'data'):
+                src=self.net.get(self.links[link]['src'])
+                dst=self.net.get(self.links[link]['dest'])
+                linkss=self.net.linksBetween(src,dst)
+                listlinks.append(linkss)
+        text1=Text(root)
+        scroll = Scrollbar(root, command=text1.yview)
+        text1.configure(yscrollcommand=scroll.set)
+        text1.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        text1.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
+        text1.tag_configure('police1',font=('Helvetica',12,'bold'))
+        text1.config(state="normal")
+        #print(linkss)
+        for link2 in listlinks:
+            text1.insert(INSERT,link2[0].__str__())
+            text1.insert(INSERT,link2[0].status())
+            text1.insert(INSERT,'\n')
+        text1.config(state='disabled')
+        text1.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
+
 
     def pingpacket1(self,hosts,number):
         root=Toplevel()
@@ -897,6 +1178,153 @@ class Interface():
         popup_menu.add_command(label="Link Properties",command=self.linkProperties)
         popup_menu.post(event.x_root,event.y_root)
 
+    def chooseServerClient(self):
+        global listentree
+        listentree={}
+        list_protocol=['TCP','UDP']
+        global myprotocol
+        global var_protocol
+
+        var_protocol=StringVar()
+        var_protocol.set(list_protocol[0])
+
+        myprotocol=[list_protocol[0]]
+
+        global hostserver
+        hostserver=StringVar()
+
+        global listenode
+
+        global hostclient
+        hostclient=StringVar()
+
+        global liste
+        name_hosts=()
+        for host in self.name_host.keys():
+            name_hosts=name_hosts+(str(host),)
+
+        root=Toplevel()
+        root.geometry('500x500')
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
+
+        # listserver = [name_hosts[0]]
+        # listclient = [name_hosts[0]]
+        liste=[name_hosts[0],name_hosts[0]]
+        listenode=[self.name_host[liste[0]],self.name_host[liste[0]]]
+        hostserver.set(name_hosts[0])
+        hostclient.set(name_hosts[0])
+        hostserver.trace("w",self.changehostserver)
+        hostclient.trace("w",self.changehostclient)
+
+        label1=Label(root,text='Choose nodes',font=helv36)
+        label1.place(x=10,y=10)
+
+        label3=Label(root,text='server',font=helv36)
+        label3.place(x=10,y=35)
+
+        dropDownMenu=OptionMenu(root,hostserver,*name_hosts)
+        dropDownMenu.place(x=90,y=35)
+
+        label5=Label(root,text="Time")
+        label5.place(x=10,y=65)
+        entry_100=Entry(root,width=10)
+        entry_100.place(x=75,y=65)
+        listentree['timeserver']=entry_100
+
+        label6 = Label(root,text="Port")
+        label6.place(x=10,y=95)
+        entry_101=Entry(root,width=10)
+        entry_101.place(x=75,y=95)
+        listentree['portserver']=entry_101
+
+        label7 = Label(root,text="Protocol")
+        label7.place(x=10,y=125)
+        var_protocol.trace("w",self.changeprotocolserver)
+        dropDownMenu3=OptionMenu(root,var_protocol,*list_protocol)
+        dropDownMenu3.place(x=75,y=125)
+
+        label95 = Label(root,text="fichier")
+        label95.place(x=10,y=155)
+        entry95=Entry(root,width=10)
+        entry95.place(x=75,y=155)
+        listentree['fichier']=entry95
+
+        label100=Label(root,text='client',font=helv36)
+        label100.place(x=250,y=35)
+        dropDownMenu2=OptionMenu(root,hostclient,*name_hosts)
+        dropDownMenu2.place(x=330,y=35)
+
+        # label102=Label(root,text='Port')
+        # label102.place(x=250,y=65)
+        # entry102=Entry(root,width=10)
+        # entry102.place(x=320,y=65)
+        # listentree['portclient']=entry102
+
+        # label103=Label(root,text='Protocol')
+        # label103.place(x=250,y=65)
+        # var_protocol1.trace("w",self.changeprotocolclient)
+        # dropDownMenu4=OptionMenu(root,var_protocol1,*list_protocol)
+        # dropDownMenu4.place(x=330,y=95)
+
+        label105 = Label(root,text='Bandwidth')
+        label105.place(x=250,y=95)
+        entry105=Entry(root,width=10)
+        entry105.place(x=330,y=95)
+        listentree['bandwidth']=entry105
+
+        label106 = Label(root,text='Transmission duration')
+        label106.place(x=200,y=125)
+        entry106=Entry(root,width=10)
+        entry106.place(x=380,y=125)
+        listentree['duration']=entry106
+
+        # label107 = Label(root,text='ServerIp')
+        # label107.place(x=250,y=155)
+        # entry107=Entry(root,width=10)
+        # entry107.place(x=350,y=155)
+        # listentree['serverip']=entry107
+
+        bouton1 = Button(root,text='OK',command=partial(self.ipeerf,listenode,myprotocol,listentree['bandwidth'],listentree['duration'],listentree['portserver'],listentree['timeserver'],listentree['fichier']))
+        bouton1.place(x=200,y=225)
+
+    # def setserver(self,server):
+        # if(myprotocol[0] == 'tcp'):
+        #     noeud=self.name_host[server[0]]
+        #     resultat = noeud.cmd('iperf -s -p %s -i %s' % (listentree['portserver'].get(),listentree['timeServer'].get()))
+
+    # def setclient(self,client):
+    #     if(myprotocol[0] == 'tcp'):
+    #         noeud=self.name_host[client[0]]
+    #         resultat = noeud.cmd('iperf -c %s -b %s -t %s -p %s' % (listentree['serverip'].get(),listentree['bandwidth'].get(),listentree['duration'].get(),listentree['portclient'].get()))
+    #         text1=Text(root,height=200,width=200)
+    #         text1.config(state="normal")
+    #         text1.insert(INSERT,resultat)
+    #         text1.config(state='disabled')
+    #         text1.pack()
+
+    def changeprotocolserver(self,*args):
+        myprotocol[0]=var_protocol.get()
+        print('myprotocol')
+        print(myprotocol)
+
+    # def changeprotocolclient(self,*args):
+    #     myprotocol1=[var_protocol1.get()]
+    #     print('myprotocol1')
+    #     print(myprotocol1)
+
+    def changehostserver(self,*args):
+        liste[1]=hostserver.get()
+        listenode[1]=self.name_host[hostserver.get()]
+        print('listenode')
+        print(listenode)
+        print('\n')
+
+    def changehostclient(self,*args):
+        liste[0]=hostclient.get()
+        listenode[0]=self.name_host[hostclient.get()]
+        print('listenode')
+        print(liste)
+
     def listBridge( self, _ignore=None ):
         selectedNode=self.selectedNode  #widget
         itemNode=self.widgetToItem[selectedNode]
@@ -942,6 +1370,8 @@ class Interface():
         content_vlan=StringVar()
         global content_vlan1
         content_vlan1=StringVar()
+        global serv
+        serv = IntVar()
         global listbox3
         global listbox4
         global listbox5
@@ -959,6 +1389,8 @@ class Interface():
         externalEntries=[]
         global directoryEntries
         directoryEntries=[]
+        global clien
+        clien=IntVar()
         fen = Toplevel()
         fen.geometry('500x500')
         nb = ttk.Notebook(fen)
@@ -1032,6 +1464,25 @@ class Interface():
 
         bouton2=Button(frame1,text="Cancel",width=8,height=2,command=lambda : fen.destroy())
         bouton2.place(x=100,y=400)
+
+        #serveur ou pas serveur
+        # label_100 = Label(frame1,text='Serveur iperf',width=20,font=('bold',10))
+        # label_100.place(x=5,y=320)
+        # bouton_serveur=Checkbutton(frame1,variable=serv,offvalue=0,onvalue=1)
+        # bouton_serveur.select()
+        # bouton_serveur.bind('<Button-1>',self.changeStatusServeur)
+        # bouton_serveur.place(x=140,y=320)
+
+        #client ou pas client
+        # label_101=Label(frame1,text='Client Iperf',width=20,font=('bold',10))
+        # label_101.place(x=200,y=320)
+        # bouton_client =Checkbutton(frame1,variable=clien,offvalue=0,onvalue=1)
+        # bouton_client.select()
+        # bouton_client.bind('<Button-1>',self.changeStatusClient)
+        # bouton_client.place(x=340,y=320)
+        #
+        # print('clien'+str(clien.get()))
+        # print('serv'+str(serv.get()))
 
         #Frame 2 VLAN INTERFACE
         label_8=Label(frame2,text="VLAN Interface:",width=20,font=("bold",10))
@@ -1141,6 +1592,15 @@ class Interface():
         listbox11.pack()
         scroll.config(command=listbox11.yview)
 
+    # def changeStatusServeur(self,*args):
+    #     print('valeur serveur'+str(serv.get()))
+    #     print('\n')
+    #
+    #
+    # def changeStatusClient(self,*args):
+    #     print('valeur client'+str(clien.get()))
+    #     print('\n')
+
     def logInformationsHost(self):
         setLogLevel( 'info' )
         newhostoptions={}
@@ -1156,6 +1616,8 @@ class Interface():
         newhostoptions['externalInterfaces']=externalEntries
         newhostoptions['privateDirectory']=directoryEntries
         newhostoptions['vlanInterfaces']=vlanEntries
+        newhostoptions['serveur']=serv.get()
+        newhostoptions['client']=clien.get()
         self.hostOptions[self.selectedNode]['options']=newhostoptions
         info('New host details for ' + newhostoptions['hostname'] + '=' + str(newhostoptions) + '\n')
 
@@ -2501,6 +2963,7 @@ class Interface():
             print('\n')
         self.link=None
         self.linkWidget=None
+
 
     def dumpNodes(self,nodes):
         root=Toplevel()
