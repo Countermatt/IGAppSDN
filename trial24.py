@@ -5,6 +5,7 @@ from Tkinter import *
 from PIL import Image,ImageTk
 #from Tkinter import ttk
 import ttk
+import time
 from tkFont import Font
 import tkFileDialog
 import logging
@@ -69,6 +70,718 @@ class customOvs(OVSSwitch):
         if self.switchIP is not None:
             self.cmd('ifconfig',self,self.switchIP )
 
+class switchWindow(object):
+
+    def __init__(self, master,name):
+        self.top=Toplevel(master)
+        self.top.geometry('500x500')
+        self.nameswitch = StringVar()
+        self.nameswitch.set(name)
+        self.content = StringVar()
+        self.infoswitch = {}
+        self.listboxInt = None
+        self.listInt = []
+        self.valueNetFlow = IntVar()
+        self.value_sFlow = IntVar()
+        self.switchType = StringVar()
+        self.result=None
+        self.switchProperties(self.top)
+
+    def switchProperties(self,window):
+        Options=["Default","Open VSwitch Kernel Mode","Indigo Virtual Switch","Userspace Switch","Userspace Switch inNamespace"]
+
+        #Switch Name
+        label_hostname=Label(self.top,text="Hostname :",width=20,font=("bold",10))
+        label_hostname.place(x=0,y=10)
+        entry_hostname=Entry(self.top,textvariable=self.nameswitch)
+        entry_hostname.place(x=130,y=10)
+        self.infoswitch['nameSwitch'] = entry_hostname
+
+        #External Interfaces
+        labelInt=Label(self.top,text="External Interface :",width=20,font=("bold",10))
+        labelInt.place(x=290,y=10)
+        bouton_add=Button(self.top,text="Add",command=self.addListbox)
+        bouton_add.place(x=440,y=8)
+
+        labelExt=Label(self.top,text="External Interfaces")
+        labelExt.place(x=330,y=50)
+        frame=Frame(self.top, width=170, height=320)
+        frame.place(x=320,y=80)
+        entryInt=Entry(frame,textvariable=self.content)
+        entryInt.pack()
+        scroll= Scrollbar(frame)
+        scroll.pack(side=RIGHT,fill=Y)
+        self.listboxInt=Listbox(frame,yscrollcommand=scroll.set)
+        self.listboxInt.pack()
+        scroll.config(command=self.listboxInt.yview)
+
+        #DPID
+        label_dpid=Label(self.top,text="DPID :",width=20,font=("bold",10))
+        label_dpid.place(x=0,y=40)
+        entry_dpid=Entry(self.top)
+        entry_dpid.place(x=110,y=40)
+        self.infoswitch["dpid"]=entry_dpid
+
+        #EnableNetFlow
+        labelNetFlow=Label(self.top,text="Enable NetFlow :",width=20,font=("bold",10))
+        labelNetFlow.place(x=0,y=70)
+        boutonNetFlow=Checkbutton(self.top,variable=self.valueNetFlow)
+        boutonNetFlow.place(x=130,y=70)
+
+        #EnablesFlow
+        label_sflow = Label(self.top,text="Enable sFlow :",width=20,font=("bold",10))
+        label_sflow.place(x=0,y=100)
+        bouton_sFlow = Checkbutton(self.top,variable=self.value_sFlow)
+        bouton_sFlow.place(x=130,y=100)
+
+        #Switch Type
+        label_type=Label(self.top,text="Switch Type",width=20,font=("bold",10))
+        label_type.place(x=0,y=130)
+        self.switchType.set(Options[0])
+        self.switchType.trace("w",self.changeswitchType)
+        dropDownMenu=OptionMenu(self.top,self.switchType,Options[0],Options[1],Options[2],Options[3],Options[4])
+        dropDownMenu.place(x=130,y=130)
+
+        #IP address
+        label_ip=Label(self.top,text="IP Address :",width=20,font=("bold",10))
+        label_ip.place(x=0,y=160)
+        entry_ip=Entry(self.top)
+        entry_ip.place(x=130,y=160)
+        self.infoswitch["ipAddress"]=entry_ip
+
+        label_port=Label(self.top,text="DPCTL port :",width=20,font=("bold",10))
+        label_port.place(x=0,y=190)
+        entry_port=Entry(self.top)
+        entry_port.place(x=130,y=190)
+        self.infoswitch['dpctlPort']=entry_port
+
+        labelstartCommand=Label(self.top,text="Start Command :",width=20,font=("bold",10))
+        labelstartCommand.place(x=0,y=320)
+        entrystartCommand=Entry(self.top)
+        entrystartCommand.place(x=140,y=320,width=350)
+        self.infoswitch['start']=entrystartCommand
+
+        labelstopCommand=Label(self.top,text="Stop Command :",width=20,font=("bold",10))
+        labelstopCommand.place(x=0,y=350)
+        entrystopCommand=Entry(self.top)
+        entrystopCommand.place(x=140,y=350,width=350)
+        self.infoswitch['stop']=entrystopCommand
+
+        bouton_ok=Button(self.top,text='OK',width=10,command=self.okAction)
+        bouton_ok.place(x=200,y=420)
+        bouton_cancel=Button(self.top,text='Cancel',width=10,command=lambda : sel.top.destroy())
+        bouton_cancel.place(x=350,y=420)
+
+    def setResult(self):
+        setLogLevel('info')
+        self.result={}
+        self.result['hostname']=self.infoswitch['nameSwitch'].get()
+        self.result['switchIP']=self.infoswitch['ipAddress'].get()
+        self.result['dpctl']=self.infoswitch['dpctlPort'].get()
+        self.result['dpid']=self.infoswitch['dpid'].get()
+        self.result['switchType']=self.switchType.get()
+        self.result['sflow']= self.value_sFlow.get()
+        self.result['netflow']=self.valueNetFlow.get()
+        self.result['externalInterfaces']= self.listInt
+        self.result['startCommand']=self.infoswitch['start'].get()
+        self.result['stopCommand']=self.infoswitch['stop'].get()
+
+    def addListbox(self):
+        self.listboxInt.insert(END,self.content.get())
+        self.listInt.append(self.content.get())
+
+    def changeswitchType(self,*args):
+        self.infoswitch['switchType']=self.switchType.get()
+
+    def okAction(self):
+        self.setResult()
+        self.top.destroy()
+
+class hostWindow(object):
+
+    def __init__(self, master,name):
+        self.top=Toplevel(master)
+        self.top.geometry('500x500')
+        self.namehost = StringVar()
+        self.namehost.set(name)
+        self.varCPU=StringVar()
+        self.result = None
+        self.contentVLANaddress=StringVar()
+        self.contentVLANid=StringVar()
+        self.contentExternal=StringVar()
+        self.content_directory=StringVar()
+        self.content_dir = StringVar()
+        self.listbox_directory=None
+        self.listbox_dir=None
+        self.directoryEntries=[]
+        self.listboxVLANaddress=None
+        self.listboxVLANid=None
+        self.listboxInt = None
+        self.hostEntries={}
+        self.vlanEntries=[]
+        self.externalEntries=[]
+        self.hostProperties(self.top)
+
+    def hostProperties(self,window):
+            options=['host','cfs','rt']
+
+            notebook = ttk.Notebook(window)
+            self.frameProperties=ttk.Frame(notebook)
+            self.frameVLAN=ttk.Frame(notebook)
+            self.frameInt=ttk.Frame(notebook)
+            self.framedirectory=ttk.Frame(notebook)
+            notebook.add(self.frameProperties,text="Properties")
+            notebook.add(self.frameVLAN,text="VLAN Interfaces")
+            notebook.add(self.frameInt,text="External Interfaces")
+            notebook.add(self.framedirectory,text="Private Directories")
+            notebook.pack(fill="both",expand="yes")
+
+            #hostname
+            label_hostname=Label(self.frameProperties,text="Hostname :",width=20,font=("bold",10))
+            label_hostname.place(x=1,y=20)
+            entry_hostname = Entry(self.frameProperties,textvariable=self.namehost)
+            entry_hostname.place(x=150,y=20)
+            self.hostEntries['hostname'] = entry_hostname
+
+            #ipAddress
+            label_ip=Label(self.frameProperties,text="IP Address :",width=20,font=("bold",10))
+            label_ip.place(x=1,y=50)
+            entry_ip=Entry(self.frameProperties)
+            entry_ip.place(x=150,y=50)
+            self.hostEntries['ipAddress']=entry_ip
+
+            #DefaultRoute
+            label_defaultRoute=Label(self.frameProperties,text="Default Route :",width=20,font=("bold",10))
+            label_defaultRoute.place(x=1,y=80)
+            entry_defaultRoute=Entry(self.frameProperties)
+            entry_defaultRoute.place(x=150,y=80)
+            self.hostEntries['defaultRoute']=entry_defaultRoute
+
+            #CPU
+            label_cpu=Label(self.frameProperties,text="Amount CPU :",width=20,font=("bold",10))
+            label_cpu.place(x=1,y=110)
+            entry_cpu=Entry(self.frameProperties)
+            entry_cpu.place(x=150,y=110)
+            self.hostEntries['cpu']=entry_cpu
+
+            self.hostEntries['sched']=options[0]
+            self.varCPU.set(options[0])
+            self.varCPU.trace("w",self.changeCPU)
+            dropDownMenu=OptionMenu(self.frameProperties,self.varCPU,options[0],options[1],options[2])
+            dropDownMenu.place(x=350,y=110)
+
+            #Cores
+            label_cores=Label(self.frameProperties,text="Cores :",width=20,font=("bold",10))
+            label_cores.place(x=1,y=140)
+            entry_cores=Entry(self.frameProperties)
+            entry_cores.place(x=150,y=140)
+            self.hostEntries['cores']=entry_cores
+
+            # #Start Command
+            label_startCommand=Label(self.frameProperties,text="Start Command :",width=20,font=("bold",10))
+            label_startCommand.place(x=1,y=170)
+            entry_startCommand=Entry(self.frameProperties)
+            entry_startCommand.place(x=150,y=170)
+            self.hostEntries['start']=entry_startCommand
+
+            # #Stop Command
+            label_stopCommand=Label(self.frameProperties,text="Stop Command :",width=20,font=("bold",10))
+            label_stopCommand.place(x=1,y=200)
+            entry_stopCommand=Entry(self.frameProperties)
+            entry_stopCommand.place(x=150,y=200)
+            self.hostEntries['stop']=entry_stopCommand
+
+            boutonProperties=Button(self.frameProperties,text="OK",width=8,height=2,command=self.okAction)
+            boutonProperties.place(x=1,y=400)
+
+            boutonCancel = Button(self.frameProperties,text="Cancel",width=8,height=2,command=lambda : self.top.destroy())
+            boutonCancel.place(x=100,y=400)
+
+            # #Frame 2 VLAN INTERFACE
+            label_VLANInt=Label(self.frameVLAN,text="VLAN Interface:",width=20,font=("bold",10))
+            label_VLANInt.place(x=50,y=10)
+            boutonaddVLAN=Button(self.frameVLAN,text='Add',command= self.addVLANInterface,width=5,height=1)
+            boutonaddVLAN.place(x=200,y=10)
+
+            frame=Frame(self.frameVLAN,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=400,height=300,bd=0)
+            frame.place(x=50,y=50)
+            sousFrame = Frame(frame, highlightbackground="black", highlightcolor="black", highlightthickness=1, width=200, height=20, bd= 0)
+            sousFrame.place(x=20,y=10)
+
+            label_ipAddress=Label(sousFrame,text="IP Address",width=20)
+            label_ipAddress.pack()
+            entry_ipAddress=Entry(sousFrame,textvariable=self.contentVLANaddress)
+            entry_ipAddress.pack()
+
+            frameVLANid = Frame(frame, highlightbackground="black", highlightcolor="black", highlightthickness=1, width=200, height=20, bd= 0)
+            frameVLANid.place(x=180,y=10)
+            label_VLANid=Label(frameVLANid,text="VLAN ID",width=20)
+            label_VLANid.pack()
+            entry_VLANid=Entry(frameVLANid,textvariable=self.contentVLANid)
+            entry_VLANid.pack()
+
+            scroll= Scrollbar(sousFrame)
+            scroll.pack(side=RIGHT,fill=Y)
+            self.listboxVLANaddress = Listbox(sousFrame,yscrollcommand=scroll.set)
+            self.listboxVLANaddress.pack()
+            scroll.config(command=self.listboxVLANaddress.yview)
+
+            scroll = Scrollbar(frameVLANid)
+            scroll.pack(side=RIGHT,fill=Y)
+            self.listboxVLANid=Listbox(frameVLANid,yscrollcommand=scroll.set)
+            self.listboxVLANid.pack()
+            scroll.config(command=self.listboxVLANid.yview)
+
+            # #Frame5  External Interfaces
+
+            labelExt=Label(self.frameInt,text="External Interface :")
+            labelExt.place(x=1,y=10)
+            bouton_add=Button(self.frameInt,text='Add',command=self.addExternalInterface)
+            bouton_add.place(x=130,y=5)
+            frameBlack=Frame(self.frameInt,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=250,height=300,bd=0)
+            frameBlack.place(x=1,y=50)
+            sousFrameBlack=Frame(frameBlack,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=200,height=20,bd=0)
+            sousFrameBlack.place(x=1,y=10)
+            labelName=Label(sousFrameBlack,text="Interface Name")
+            labelName.pack()
+            entryExternal=Entry(sousFrameBlack,textvariable=self.contentExternal)
+            entryExternal.pack()
+            sousFrameBlack1=Frame(frameBlack,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=200,height=300,bd=0)
+            sousFrameBlack1.place(x=1,y=80)
+
+            scroll= Scrollbar(sousFrameBlack1)
+            scroll.pack(side=RIGHT,fill=Y)
+            self.listboxInt=Listbox(sousFrameBlack1,yscrollcommand=scroll.set)
+            self.listboxInt.pack()
+            scroll.config(command=self.listboxInt.yview)
+
+            # bouton11=Button(frame2,text="OK",width=10,height=2)
+            # bouton11.place(x=150,y=380)
+            # bouton12=Button(frame2,text="Cancel",command=lambda:fen.destroy(),width=10,height=2)
+            # bouton12.place(x=260,y=380)
+
+            # bouton13=Button(frame5,text="OK",width=10,height=2)
+            # bouton13.place(x=10,y=380)
+            # bouton14=Button(frame5,text="Cancel",command=lambda:fen.destroy(),width=10,height=2)
+            # bouton14.place(x=120,y=380)
+            #
+            # bouton15=Button(frame6,text="OK",width=10,height=2)
+            # bouton15.place(x=150,y=380)
+            # bouton16=Button(frame6,text="Cancel",command=lambda:fen.destroy(),width=10,height=2)
+            # bouton16.place(x=260,y=380)
+
+            # #frame 6 PRIVATE DIRECTORIES
+            label_directory=Label(self.framedirectory,text="Private Directory:",width=20,font=("bold",10))
+            label_directory.place(x=50,y=10)
+            bouton_add=Button(self.framedirectory,text='Add',command= self.addDirectory,width=5,height=1)
+            bouton_add.place(x=200,y=10)
+
+            framedir=Frame(self.framedirectory,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=400,height=300,bd=0)
+            framedir.place(x=50,y=50)
+            sousFramedir=Frame(framedir, highlightbackground="black", highlightcolor="black", highlightthickness=1, width=200, height=20, bd= 0)
+            sousFramedir.place(x=20,y=10)
+
+            label_mount=Label(sousFramedir,text="Mount",width=20)
+            label_mount.pack()
+            entry_directory=Entry(sousFramedir,textvariable=self.content_directory)
+            entry_directory.pack()
+
+            sousFramedir1 = Frame(framedir, highlightbackground="black", highlightcolor="black", highlightthickness=1, width=200, height=20, bd= 0)
+            sousFramedir1.place(x=180,y=10)
+            label_persistent_directory=Label(sousFramedir1,text="Persistent Directory",width=20)
+            label_persistent_directory.pack()
+            entry_dir=Entry(sousFramedir1,textvariable=self.content_dir)
+            entry_dir.pack()
+
+            scroll= Scrollbar(sousFramedir)
+            scroll.pack(side=RIGHT,fill=Y)
+            self.listbox_directory=Listbox(sousFramedir,yscrollcommand=scroll.set)
+            self.listbox_directory.pack()
+            scroll.config(command=self.listbox_directory.yview)
+
+            scroll= Scrollbar(sousFramedir1)
+            scroll.pack(side=RIGHT,fill=Y)
+            self.listbox_dir=Listbox(sousFramedir1,yscrollcommand=scroll.set)
+            self.listbox_dir.pack()
+            scroll.config(command=self.listbox_dir.yview)
+
+    def addVLANInterface(self):
+        self.listboxVLANaddress.insert(END,self.contentVLANaddress.get())
+        self.listboxVLANid.insert(END,self.contentVLANid.get())
+        self.vlanEntries.append([self.contentVLANaddress.get(),self.contentVLANid.get()])
+
+    def addExternalInterface(self):
+        self.listboxInt.insert(END,self.contentExternal.get())
+        self.externalEntries.append(self.contentExternal.get())
+
+    def addDirectory(self):
+        self.listbox_directory.insert(END,self.content_directory.get())
+        self.listbox_dir.insert(END,self.content_dir.get())
+        self.directoryEntries.append((self.content_directory.get(),self.content_dir.get()))
+
+    def changeCPU(self,*args):
+        self.hostEntries['sched']=self.varCPU.get()
+
+    def setResult(self):
+        self.result={}
+        self.result['hostname']=self.hostEntries['hostname'].get()
+        self.result['ip']=self.hostEntries['ipAddress'].get()
+        self.result['defaultRoute']=self.hostEntries['defaultRoute'].get()
+        self.result['cores']=self.hostEntries['cores'].get()
+        self.result['startCommand']=self.hostEntries['start'].get()
+        self.result['stopCommand']=self.hostEntries['stop'].get()
+        self.result['sched']=self.hostEntries['sched']
+        self.result['cpu']=self.hostEntries['cpu'].get()
+        self.result['externalInterfaces']=self.externalEntries
+        self.result['privateDirectory']=self.directoryEntries
+        self.result['vlanInterfaces']=self.vlanEntries
+
+    def okAction(self):
+        self.setResult()
+        self.top.destroy()
+
+    def cancelAction(self):
+        self.top.destroy()
+
+class ctrlWindow(object):
+
+    def __init__(self, master,name):
+        self.top=Toplevel(master)
+        self.top.geometry('300x320')
+        self.namecontroller = StringVar()
+        self.namecontroller.set(name)
+        self.ctrlProp={}
+        self.result=None
+        self.ctrlPort = StringVar()
+        self.ctrlPort.set('6633')
+        self.ctrlType = StringVar()
+        self.ctrlType.set('OpenFlow Reference')
+        self.ctrlProtocol = StringVar()
+        self.ctrlProtocol.set('tcp')
+        self.ctrladdress=StringVar()
+        self.ctrladdress.set('127.0.0.1')
+        self.ctrlProperties(self.top)
+
+    def ctrlProperties(self,window):
+        Options=['OpenFlow Reference','Remote Controller','In-Band Controller','OVS Controller']
+        optionsProtocol=['tcp','ssl']
+
+        labelName=Label(self.top,text='Name:')
+        labelName.place(x=1,y=10)
+        entryName=Entry(self.top,textvariable=self.namecontroller)
+        entryName.place(x=120,y=10)
+        self.ctrlProp['hostname']=entryName
+
+        labelPort=Label(self.top,text='Controller Port:')
+        labelPort.place(x=1,y=40)
+        entryPort=Entry(self.top,textvariable=self.ctrlPort)
+        entryPort.place(x=120,y=40)
+        self.ctrlProp['remotePort']=entryPort
+
+        labelType=Label(self.top,text='Controller Type:')
+        labelType.place(x=1,y=70)
+        self.ctrlType.trace("w",self.changeCtrlType)
+        dropDownMenu=OptionMenu(self.top,self.ctrlType,Options[0],Options[1],Options[2],Options[3])
+        dropDownMenu.place(x=120,y=70)
+
+        labelProtocol=Label(self.top,text='Protocol:')
+        labelProtocol.place(x=1,y=100)
+        self.ctrlProtocol.trace("w",self.changeProtocol)
+        dropDownMenu1=OptionMenu(self.top,self.ctrlProtocol,optionsProtocol[0],optionsProtocol[1])
+        dropDownMenu1.place(x=120,y=110)
+
+        frame=LabelFrame(self.top,text="Remote/In-Band Controller",width=280,height=60)
+        frame.place(x=10,y=150)
+        label_ip=Label(frame,text="IP Address:")
+        label_ip.place(x=1,y=10)
+        entry_address=Entry(frame,textvariable=self.ctrladdress)
+        entry_address.place(x=90,y=10)
+        self.ctrlProp['remoteIP']=entry_address
+
+        bouton_ok=Button(self.top,text='OK',width=5,height=1,command=self.okAction)
+        bouton_ok.place(x=50,y=230)
+        bouton_cancel=Button(self.top,text='Cancel',width=5,height=1,command=lambda:self.top.destroy())
+        bouton_cancel.place(x=150,y=230)
+
+    def changeCtrlType(self,*args):
+        self.ctrlProp['controllerType']=self.ctrlType.get()
+
+    def changeProtocol(self,*args):
+        self.ctrlProp['controllerProtocol']=self.ctrlProtocol.get()
+
+    def setResult(self):
+        self.result={}
+        self.result['hostname']=self.ctrlProp['hostname'].get()
+        self.result['remotePort']=int(self.ctrlProp['remotePort'].get())
+        self.result['remoteIP']=self.ctrlProp['remoteIP'].get()
+        self.result['controllerType']=self.ctrlType.get()
+        self.result['controllerProtocol']=self.ctrlProtocol.get()
+
+    def okAction(self):
+        self.setResult()
+        self.top.destroy()
+
+
+class linkWindow(object):
+
+    def __init__(self, master):
+        self.top=Toplevel(master)
+        self.top.geometry("350x250")
+        self.linkProp={}
+        self.result=None
+        self.linkProperties(self.top)
+
+    def linkProperties(self,window):
+        #Bandwidth
+        labelBandwidth=Label(self.top,text='Bandwidth:',width=15,font=("bold",10))
+        labelBandwidth.place(x=0,y=10)
+        entryBandwidth=Entry(self.top)
+        entryBandwidth.place(x=125,y=10)
+        self.linkProp['bw']=entryBandwidth
+        labelUnite=Label(self.top,text='Mbit')
+        labelUnite.place(x=290,y=10)
+
+        #Delay
+        label_delay=Label(self.top,text='Delay:',width=15,font=("bold",10))
+        label_delay.place(x=0,y=40)
+        entry_delay=Entry(self.top)
+        entry_delay.place(x=125,y=40)
+        self.linkProp['delay']=entry_delay
+
+        #Loss
+        label_loss=Label(self.top,text='Loss:',width=15,font=("bold",10))
+        label_loss.place(x=0,y=70)
+        entry_loss=Entry(self.top)
+        entry_loss.place(x=125,y=70)
+        label_unite=Label(self.top,text='%')
+        label_unite.place(x=290,y=70)
+        self.linkProp['loss']=entry_loss
+
+        #Max Queue Size
+        label_queuesize=Label(self.top,text='Max Queue size:',width=15,font=("bold",10))
+        label_queuesize.place(x=0,y=100)
+        entry_queuesize=Entry(self.top)
+        entry_queuesize.place(x=125,y=100)
+        self.linkProp['max_queue_size']=entry_queuesize
+
+        #Jitter
+        labelJitter=Label(self.top,text='Jitter:',width=15,font=("bold",10))
+        labelJitter.place(x=0,y=130)
+        entryJitter=Entry(self.top)
+        entryJitter.place(x=125,y=130)
+        self.linkProp['jitter']=entryJitter
+
+        #Speedup
+        label_speedup=Label(self.top,text='Speedup:',width=15,font=("bold",10))
+        label_speedup.place(x=0,y=160)
+        entry_speedup=Entry(self.top)
+        entry_speedup.place(x=125,y=160)
+        self.linkProp['speedup']=entry_speedup
+
+        bouton_ok=Button(self.top,text='OK',width=10,command=self.okAction)
+        bouton_ok.place(x=80,y=200)
+        bouton_cancel=Button(self.top,text='Cancel',width=10,command = lambda:self.top.destroy())
+        bouton_cancel.place(x=210,y=200)
+
+    def setResult(self):
+        self.result = {}
+        self.result['bw']=int(self.linkProp['bw'].get())
+        self.result['delay']=self.linkProp['delay'].get()
+        self.result['loss']=int(self.linkProp['loss'].get())
+        self.result['max_queue_size']=int(self.linkProp['max_queue_size'].get())
+        self.result['jitter']=self.linkProp['jitter'].get()
+        self.result['speedup']=int(self.linkProp['speedup'].get())
+
+    def okAction(self):
+        self.setResult()
+        self.top.destroy()
+
+class prefWindow(object):
+
+    def __init__(self, master):
+        self.top=Toplevel(master)
+        self.top.geometry('770x390')
+        self.top.title("Preferences")
+        self.ipBase = StringVar()
+        self.ipBase.set("10.0.0.0/8")
+        self.prefProp = {}
+        self.terminalType = StringVar()
+        self.terminalType.set('xterm')
+        self.startCLI = IntVar()
+        self.switchType = StringVar()
+        self.switchType.set("Open vSwitch Kernel Mode")
+        self.ovsOf10=IntVar()
+        self.ovsOf10.set(1)
+        self.ovsOf11=IntVar()
+        self.ovsOf12=IntVar()
+        self.ovsOf13=IntVar()
+        self.nFlowAddId=IntVar()
+        self.setPreferences()
+
+    def changeTerminalType(self,*args):
+        self.prefProp['terminalType']=self.terminalType
+
+    def changeSwitchType(self,*args):
+        self.prefProp['switchType']=self.switchType
+
+    def setPreferences(self):
+        optionsTerminal=['xterm','gterm']
+        optionsSwitch=["Open vSwitch Kernel Mode","Indigo Virtual Switch","Userspace Switch","Userspace Switch inNamespace"]
+        sampling = StringVar()
+        sampling.set("400")
+        header=StringVar()
+        header.set('128')
+        polling=StringVar()
+        polling.set("30")
+        activeTimeout=StringVar()
+        activeTimeout.set("600")
+
+        #IP base
+        label_ip=Label(self.top,text="IP base :",width=10,font=("bold",10))
+        label_ip.place(x=0,y=10)
+        entry_ip=Entry(self.top,textvariable=self.ipBase)
+        entry_ip.place(x=150,y=10)
+        self.prefProp['ipBase']=entry_ip
+
+        #terminalType
+        labelTerminal=Label(self.top,text="Default Terminal:",width=17,font=("bold",10))
+        labelTerminal.place(x=0,y=40)
+        self.prefProp['terminalType']=self.terminalType
+        self.terminalType.trace("w",self.changeTerminalType)
+        dropDownMenu=OptionMenu(self.top,self.terminalType,optionsTerminal[0],optionsTerminal[1])
+        dropDownMenu.place(x=150,y=40)
+
+        #CLI
+        labelCLI=Label(self.top,text="Start CLI :",width=10,font=("bold",10))
+        labelCLI.place(x=0,y=70)
+        boutonCLI=Checkbutton(self.top,variable=self.startCLI)
+        boutonCLI.place(x=150,y=70)
+
+        #SwitchType
+        labeldefaultSwitch=Label(self.top,text="Default Switch :",width=15,font=("bold",10))
+        labeldefaultSwitch.place(x=0,y=100)
+
+        self.prefProp['switchType']=self.switchType
+        self.switchType.trace("w",self.changeSwitchType)
+        dropDownMenu1=OptionMenu(self.top,self.switchType,optionsSwitch[0],optionsSwitch[1],optionsSwitch[2],optionsSwitch[3])
+        dropDownMenu1.place(x=150,y=100)
+
+        #OpenVSwitch
+        frame=LabelFrame(self.top,width=350, height=150, text="Open vSwitch")
+        frame.place(x=10,y=130)
+
+        #OpenFlow 1.0
+        label_openFlow=Label(frame,text="OpenFlow 1.0:")
+        label_openFlow.place(x=0,y=10)
+        bouton_openFlow=Checkbutton(frame,variable=self.ovsOf10)
+        bouton_openFlow.place(x=100,y=10)
+
+        #OpenFlow 1.1
+        label_openFlow1=Label(frame,text="OpenFlow 1.1:")
+        label_openFlow1.place(x=0,y=40)
+        bouton_openFlow1=Checkbutton(frame,variable=self.ovsOf11)
+        bouton_openFlow1.place(x=100,y=40)
+
+        #OpenFlow 1.2
+        label_openFlow2=Label(frame,text="OpenFlow 1.2:")
+        label_openFlow2.place(x=0,y=70)
+        bouton_openFlow2=Checkbutton(frame,variable=self.ovsOf12)
+        bouton_openFlow2.place(x=100,y=70)
+
+        #OpenFlow 1.3
+        label_openFlow3=Label(frame,text="OpenFlow 1.3:")
+        label_openFlow3.place(x=0,y=100)
+        bouton_openFlow3=Checkbutton(frame,variable=self.ovsOf13)
+        bouton_openFlow3.place(x=100,y=100)
+
+        #dpctl port
+        label_dpctl=Label(self.top,text='dpctl port:')
+        label_dpctl.place(x=40,y=290)
+        entry_dpctl=Entry(self.top)
+        entry_dpctl.place(x=160,y=290)
+        self.prefProp['dpctl']=entry_dpctl
+
+        frame1=LabelFrame(self.top,width=350, height=150, text="sFlow Profile for Open vSwitch")
+        frame1.place(x=400,y=10)
+
+        #Target
+        labelTarget=Label(frame1,text='Target:')
+        labelTarget.place(x=0,y=10)
+        entryTarget=Entry(frame1)
+        entryTarget.place(x=60,y=10)
+        self.prefProp['sFlowTarget']=entryTarget
+
+        #Sampling
+        label_sampling=Label(frame1,text='Sampling:')
+        label_sampling.place(x=0,y=40)
+        entry_sampling=Entry(frame1,textvariable=sampling)
+        entry_sampling.place(x=70,y=40)
+        self.prefProp['sFlowSampling']=entry_sampling
+
+        #Header
+        label_header=Label(frame1,text='Header:')
+        label_header.place(x=0,y=70)
+        entry_header=Entry(frame1,textvariable=header)
+        entry_header.place(x=60,y=70)
+        self.prefProp['sFlowHeader']=entry_header
+
+        #Polling
+        labelPolling=Label(frame1,text='Polling:')
+        labelPolling.place(x=0,y=100)
+        entryPolling=Entry(frame1,textvariable=polling)
+        entryPolling.place(x=60,y=100)
+        self.prefProp['sFlowPolling']=entryPolling
+
+        frame2=LabelFrame(self.top,width=350, height=160, text="NetFlow Profile for Open vSwitch")
+        frame2.place(x=400,y=170)
+        labelTarget=Label(frame2,text='Target:')
+        labelTarget.place(x=70,y=10)
+        entryTarget=Entry(frame2)
+        entryTarget.place(x=120,y=10)
+        self.prefProp['nFlowTarget']=entryTarget
+
+        label_activeTimeout=Label(frame2,text='Active Timeout:')
+        label_activeTimeout.place(x=20,y=40)
+        entry_activeTimeout=Entry(frame2,textvariable=activeTimeout)
+        entry_activeTimeout.place(x=130,y=40)
+        self.prefProp['nFlowTimeout']=entry_activeTimeout
+
+        label_idInt=Label(frame2,text='Add ID to Interface:')
+        label_idInt.place(x=0,y=70)
+        bouton_idInt=Checkbutton(frame2,variable=self.nFlowAddId)
+        bouton_idInt.place(x=135,y=70)
+
+        bouton_ok=Button(self.top,text="OK",width=10,command=self.okAction)
+        bouton_ok.place(x=280,y=345)
+        bouton_cancel=Button(self.top,text="Cancel",width=10,command = lambda : self.top.destroy())
+        bouton_cancel.place(x=400,y=345)
+
+    def setResult(self):
+        self.result={}
+        self.result['dpctl']=self.prefProp['dpctl'].get()
+        self.result['sflow']={}
+        self.result['sflow']['sflowPolling']=self.prefProp['sFlowPolling'].get()
+        self.result['sflow']['sflowHeader']=self.prefProp['sFlowHeader'].get()
+        self.result['sflow']['sflowTarget']=self.prefProp['sFlowTarget'].get()
+        self.result['sflow']['sflowSampling']=self.prefProp['sFlowSampling'].get()
+        self.result['openFlowVersions']={}
+        self.result['openFlowVersions']['ovsOf10']=self.ovsOf10.get()
+        self.result['openFlowVersions']['ovsOf11']=self.ovsOf11.get()
+        self.result['openFlowVersions']['ovsOf12']=self.ovsOf12.get()
+        self.result['openFlowVersions']['ovsOf13']=self.ovsOf13.get()
+        self.result['ipBase']=self.prefProp['ipBase'].get()
+        self.result['terminalType']=self.prefProp['terminalType'].get()
+        self.result['switchType']=self.prefProp['switchType'].get()
+        self.result['netflow']={}
+        self.result['netflow']['nflowTarget']=self.prefProp['nFlowTarget'].get()
+        self.result['netflow']['nflowTimeout']=self.prefProp['nFlowTimeout'].get()
+        self.result['netflow']['nflowAddId']=self.nFlowAddId.get()
+        self.result['startCLI']=self.startCLI.get()
+
+    def okAction(self):
+        self.setResult()
+        self.top.destroy()
+
 class LegacySwitch(OVSSwitch):
     def __init__(self,name,**params):
         OVSSwitch.__init__(self,name,failMode='standalone',**params )
@@ -106,9 +819,760 @@ class LegacyRouter(Node):
             self.cmd('sysctl -w net.ipv4.ip_forward=1')
             return r
 
+class pingPacketWindow(object):
+
+    def __init__(self,master,dict_host,textCanvas,network):
+        self.top = Toplevel(master)
+        self.top.geometry('300x200')
+        self.text = textCanvas
+        self.number = StringVar()
+        self.net = network
+        self.number.set('2')
+        self.numbers = []
+        self.hostnames = []
+        self.dict_hosts = dict_host
+        self.sethostnames()
+        self.setNumbers()
+        self.choosenNumber = [ self.numbers[0] ]
+        self.selectedNames = [ self.hostnames[0] , self.hostnames[0] ]
+        self.selectedNodes = [ self.dict_hosts[ self.hostnames[0] ] , self.dict_hosts[ self.hostnames[0] ] ]
+        self.selectedhost1 = StringVar()
+        self.selectedhost1.set(self.hostnames[0])
+        self.selectedhost2 = StringVar()
+        self.selectedhost2.set(self.hostnames[0])
+        self.openWindow()
+
+    def setNumbers(self):
+        for i in range(2,31):
+            self.numbers.append(i)
+
+    def sethostnames(self):
+        for host in self.dict_hosts.keys():
+            self.hostnames.append(host)
+
+    def changeFirsthost(self,*args):
+        self.selectedNames[0] = self.selectedhost1.get()
+        self.selectedNodes[0] = self.dict_hosts[ self.selectedhost1.get() ]
+
+    def changeSecondhost(self,*args):
+        self.selectedNames[1] = self.selectedhost2.get()
+        self.selectedNodes[1] = self.dict_hosts[ self.selectedhost2.get() ]
+
+    def changeNumber(self,*args):
+        self.choosenNumber[0] = self.number.get()
+
+    def openWindow(self):
+        numbers = self.numbers
+        hosts = self.hostnames
+        self.number.trace("w",self.changeNumber)
+        self.selectedhost1.trace("w",self.changeFirsthost)
+        self.selectedhost2.trace("w",self.changeSecondhost)
+        dropDownMenu=OptionMenu(self.top,self.selectedhost1,*hosts)
+        dropDownMenu.place(x=0,y=50)
+        dropDownMenu1=OptionMenu(self.top,self.selectedhost2,*hosts)
+        dropDownMenu1.place(x=60,y=50)
+        dropDownMenu2=OptionMenu(self.top,self.number,*numbers)
+        dropDownMenu2.place(x=120,y=50)
+        bouton=Button(self.top,text='OK',command=self.okAction)
+        bouton.place(x=180,y=50)
+
+    def pingPacket(self,hosts,number):
+        self.text.config(state='normal')
+        self.text.delete('1.0',END)
+        h1=self.net.get(hosts[0])
+        h2=self.net.get(hosts[1])
+        self.text.insert(END,'\nExchanged packets between ' + hosts[0] + ' and '  + hosts[1]+'\n'+'\n')
+        result= h1.cmd('ping -c %s %s' % (number[0],h2.IP()))
+        self.text.insert(END,result)
+        self.text.config(state='disabled')
+
+    def okAction(self):
+        self.pingPacket(self.selectedNames,self.choosenNumber)
+        self.top.destroy()
+
+class iperfWindow(object):
+
+    def __init__(self,master,dict_host,textCanvas,network):
+        self.top = Toplevel(master)
+        self.top.geometry('700x700')
+        self.text = textCanvas
+        self.dict_hosts = dict_host
+        self.hostnames=[]
+        self.sethostnames() #setting hostnames
+        self.host1 = StringVar() #var_name2
+        self.host1.set(self.hostnames[0])
+        self.host2 = StringVar() #var_name3
+        self.host2.set(self.hostnames[0])
+        self.selectedNames = [self.hostnames[0],self.hostnames[0]] #selectedNames
+        self.selectedNodes = [ self.dict_hosts[ self.hostnames[0] ] , self.dict_hosts[ self.hostnames[0] ] ] #selectedNodes
+        self.openWindow()
+
+    def sethostnames(self):
+        for host in self.dict_hosts.keys():
+            self.hostnames.append(host)
+
+    def changeFirsthostname(self,*args):
+        self.selectedNames[0] = self.host1.get()
+        self.selectedNodes[0] = self.dict_hosts[self.host1.get()]
+
+    def changeSecondhostname(self,*args):
+        self.selectedNames[1] = self.host2.get()
+        self.selectedNodes[1] = self.dict_hosts[self.host2.get()]
+
+    def openWindow(self):
+        namehosts = self.hostnames
+        self.host1.trace("w",self.changeFirsthostname)
+        self.host2.trace("w",self.changeSecondhostname)
+        dropDownMenu=OptionMenu(self.top,self.host1,*namehosts)
+        dropDownMenu.place(x=350,y=110)
+
+        dropDownMenu1=OptionMenu(self.top,self.host2,*namehosts)
+        dropDownMenu1.place(x=500,y=110)
+
+        bouton =  Button(self.top,text='OK',command = self.okAction)
+        bouton.place(x=300,y=600)
+
+    def iperf( self, hosts=None, l4Type='TCP', udpBw='10M' ):
+        self.text.config(state='normal')
+        self.text.delete('1.0',END)
+        if not quietRun( 'which telnet' ):
+            self.text.insert(INSERT, 'Cannot find telnet in $PATH - required for iperf test')
+            self.text.config(state='disabled')
+            return
+        client, server = hosts
+        self.text.insert(INSERT,'*** Iperf : testing ' + l4Type + ' bandwidth between ' + str(client.name) + ' and ' + str(server.name) + '\n')
+        server.cmd( 'killall -9 iperf' )
+        iperfArgs = 'iperf '
+        bwArgs = ''
+        if l4Type == 'UDP':
+            iperfArgs += '-u '
+            bwArgs = '-b ' + udpBw + ' '
+        elif l4Type != 'TCP':
+            self.text.insert(INSERT,'Unexpected l4 type: ' + str(l4Type))
+            self.text.config(state='disabled')
+            return
+        server.sendCmd( iperfArgs + '-s', printPid=True )
+        servout = ''
+        while server.lastPid is None:
+            servout += server.monitor()
+        while 'Connected' not in client.cmd('sh -c "echo A | telnet -e A %s 5001"' % server.IP()):
+            sleep(.5)
+        cliout = client.cmd( iperfArgs + '-t 5 -c ' + server.IP() + ' ' + bwArgs )
+        server.sendInt()
+        servout += server.waitOutput()
+        r = r'([\d\.]+ \w+/sec)'
+        m = re.findall(r,servout)
+        if m:
+            iperfservout=m[-1]
+        else:
+            self.text.insert(INSERT,'could not parse iperf output: ' + servout )
+            iperfservout = ''
+
+        r = r'([\d\.]+ \w+/sec)'
+        m1 = re.findall(r,cliout)
+        if m1:
+            iperfcliout=m1[-1]
+        else:
+            self.text.insert(INSERT,'could not parse iperf output: ' + cliout )
+            iperfcliout = ''
+        result = [iperfservout,iperfservout]
+        if l4Type == 'UDP':
+            result.insert( 0, udpBw )
+        self.text.insert(INSERT,'*** Results: ' + str(result) + '\n')
+        self.text.config(state='disabled')
+        return result
+
+    def okAction(self):
+        self.iperf(self.selectedNodes)
+        self.top.destroy()
+
+class ifconfigWindow(object):
+
+    def __init__(self,master,dict_host,dict_switch,dict_ctrl,textCanvas,net): #self.name_host , self.nameswitch ,self.namecontroller
+        self.top=Toplevel(master)
+        self.top.geometry('300x130')
+        self.network = net
+        self.dict_hosts = dict_host
+        self.text = textCanvas
+        self.dict_switches = dict_switch
+        self.dict_ctrls = dict_ctrl
+        self.namehosts = []
+        self.namectrl = []
+        self.nameswitch= []
+        self.sethosts()
+        self.setCtrls()
+        self.setSwitches()
+        self.names = self.namehosts + self.namectrl + self.nameswitch
+        self.selectedNode = [self.names[0]]
+        self.node = StringVar()
+        self.node.set(self.names[0])
+        self.chooseNode()
+
+    def sethosts(self):
+        for hostname in self.dict_hosts.keys():
+            self.namehosts.append(hostname)
+
+    def setCtrls(self):
+        for ctrl in self.dict_ctrls.keys():
+            self.namectrl.append(ctrl)
+
+    def setSwitches(self):
+        for switch in self.dict_switches.keys():
+            self.nameswitch.append(switch)
+
+    def chooseNode(self):
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
+        label = Label(self.top,text='Nodes interfaces',font=helv36)
+        label.place(x=100,y=0)
+        self.node.trace("w",self.changeNodeName)
+        names = self.names
+        labelChooseNode=Label(self.top,text='Choose node',font=helv36)
+        labelChooseNode.place(x=110,y=30)
+        dropDownMenu=OptionMenu(self.top,self.node,*names)
+        dropDownMenu.place(x=85,y=60)
+        bouton = Button(self.top,text='OK',command=self.okAction)
+        bouton.place(x=175,y=60)
+
+    def changeNodeName(self,*args):
+        self.selectedNode[0] = self.node.get()
+
+    def ifconfigTest(self):
+        self.text.config(state='normal')
+        self.text.delete('1.0',END)
+        self.text.insert(END,"\n" + str(self.selectedNode[0]) + "'s interfaces\n"+'\n' + '\n','big')
+        result1=self.network.get(self.selectedNode[0])
+        result2=result1.cmd('ifconfig')
+        self.text.insert(END,result2,'police')
+        self.text.config(state='disabled')
+
+    def okAction(self):
+        self.ifconfigTest()
+        self.top.destroy()
+
+class pingWindow(object):
+
+    def __init__(self,master,dict_host,textCanvas): #self.name_host , textcanvas
+        self.top=Toplevel(master)
+        self.top.geometry('300x150')
+        self.text = textCanvas
+        self.dict_hosts = dict_host  #dictionnaire nom , noeud correspondants
+        self.hostnames = [] #liste des hostnames
+        self.namesPair = []
+        self.nodesPair = []
+        self.sethostnames() # set la liste des hostnames
+        self.host1 = StringVar()
+        self.host2 = StringVar()
+        self.host1.set(self.hostnames[0])
+        self.host2.set(self.hostnames[0])
+        self.openWindow()
+
+    def sethostnames(self):
+        for host in self.dict_hosts.keys():
+            self.hostnames.append(host)
+        self.namesPair = [ self.hostnames[0] , self.hostnames[0] ] # les noms des hotes choisis qu'il faut mettre au départ à hostnames[0]
+        self.nodesPair = [ self.dict_hosts[ self.namesPair[0] ] , self.dict_hosts[ self.namesPair[1] ] ] # les noeuds des hotes choisies
+
+    def openWindow(self):
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
+        label_nodes=Label(self.top,text='Available nodes',font=helv36)
+        label_nodes.place(x=100,y=0)
+
+        label_choose=Label(self.top,text='Choose nodes',font=helv36)
+        label_choose.place(x=110,y=30)
+
+        names = self.hostnames
+
+        self.host1.trace("w",self.changeFirsthostname)
+        self.host2.trace("w",self.changeSecondhostname)
+
+        dropDownMenu=OptionMenu(self.top,self.host1,*names)
+        dropDownMenu.place(x=85,y=60)
+        dropDownMenu1=OptionMenu(self.top,self.host2,*names)
+        dropDownMenu1.place(x=175,y=60)
+        bouton = Button(self.top,text='OK',command=self.okAction)
+        bouton.place(x=135,y=100)
+
+    def changeFirsthostname(self,*args):
+        self.namesPair[0] = self.host1.get()
+        self.nodesPair[0] = self.dict_hosts[self.host1.get()]
+
+    def changeSecondhostname(self,*args):
+        self.namesPair[1] = self.host2.get()
+        self.nodesPair[1] = self.dict_hosts[self.host2.get()]
+
+    def okAction(self):
+        self.pingPair(self.nodesPair)
+        self.top.destroy()
+
+    def pingPair(self,hosts=None,timeout=None ):
+        self.text.config(state='normal')
+        self.text.delete('1.0',END)
+        self.text.insert(END,'\nPing : Testing ping reachability between ' + str(hosts[0]) + ' and ' + str(hosts[1]) + '\n\n','modif')
+        packets = 0
+        lost = 0
+        ploss = None
+        for node in hosts:
+            self.text.insert(END,str(node.name) + ' ' + '-> ','police')
+            for dest in hosts:
+                if node != dest:
+                    opts = ''
+                    if timeout:
+                        opts = '-W %s' % timeout
+                    if dest.intfs:
+                        result = node.cmd('ping -c1 %s %s' % (opts, dest.IP()))
+                        if 'connect: Network is unreachable' in result:
+                            (sent,received) = (1,0)
+                        else:
+                            r = r'(\d+) packets transmitted, (\d+)( packets)? received'
+                            m = re.search(r,result)
+                            if m is None:
+                                self.text.insert(END,'*** Error: could not parse ping output: ' + str(result) + '\n','police')
+                                (sent,received)=(1,0)
+                            else:
+                                (sent,received) = (int(m.group(1)),int(m.group(2)))
+                    else:
+                        sent, received = 0, 0
+                    packets += sent
+                    if received > sent:
+                        self.text.insert(END,'*** Error: received too many packets','police')
+                        self.text.insert(INSERT,str(result))
+                        node.cmdPrint('route')
+                        exit(1)
+                    lost += sent - received
+                    if received :
+                        self.text.insert(INSERT,str(dest.name),'police1')
+                    else:
+                        self.text.insert(INSERT,str('X'),'police1')
+            self.text.insert(INSERT,str('\n'))
+        if packets > 0:
+            ploss = 100.0 * lost / packets
+            received = packets - lost
+            self.text.insert(END,"*** Results: "+str(ploss)+' '+'dropped ('+str(received)+'/'+str(packets)+'received)\n','police')
+        else:
+            ploss = 0
+            self.text.insert(END,"*** Warning: No packets sent\n",'police')
+        self.text.config(state='disabled')
+        return ploss
+
+class ipaWindow(object):
+
+    def __init__(self, master,dict_switches,dict_hosts,textCanvas):
+        self.text = textCanvas
+        self.top=Toplevel(master)
+        self.top.geometry('200x200')
+        self.dict_switch = dict_switches
+        self.dict_host = dict_hosts
+        self.listOfNodes = None
+        self.selectedNode = []
+        self.node = StringVar()
+        self.chooseNode()
+
+    def dict_switch_keys(self):
+        name_switch = []
+        for name in self.dict_switch.keys():
+            name_switch.append(name)
+        return name_switch
+
+    def dict_host_keys(self):
+        name_host = []
+        for name in self.dict_host.keys():
+            name_host.append(name)
+        return name_host
+
+    def changeNode(self,*args):
+        self.selectedNode[0]=self.node.get()
+
+    def chooseNode(self):
+        list_switches = self.dict_switch_keys()
+        list_hosts = self.dict_host_keys()
+        self.listOfNodes = list_switches + list_hosts
+        self.node.set(self.listOfNodes[0])
+        self.node.trace('w',self.changeNode)
+        self.selectedNode = [self.listOfNodes[0]]
+        listNodes = self.listOfNodes
+        dropdownmenu = OptionMenu(self.top,self.node,*listNodes)
+        dropdownmenu.place(x=20,y=30)
+        bouton=Button(self.top,text='OK',command=partial(self.ipa,self.selectedNode))
+        bouton.place(x=80,y=30)
+
+    def ipa(self,names):
+        self.top.destroy()
+        self.text.config(state="normal")
+        self.text.delete('1.0',END)
+
+        if names[0] in self.dict_switch.keys() :
+            node = self.dict_switch[names[0]]
+            links, _err, _result = node.pexec( 'ip link show' )
+            self.text.insert(END,links)
+            self.text.config(state='disabled')
+            return
+        elif names[0] in self.dict_host.keys():
+            node = self.dict_host[names[0]]
+            links, _err, _result = node.pexec('ip link show')
+            self.text.insert(END,links)
+            self.text.config(state='disabled')
+
+
+class serverOrClient(object):
+
+    def __init__(self,master,dict_host):
+        self.top = Toplevel(master)
+        self.top.geometry('1000x1000')
+        self.clients=[]
+        self.servers=[]
+        self.hostnames=[]
+        self.courbes=[]
+        self.liste=[]
+        self.listNameservers = []
+        self.listNameclients = []
+        self.entries_server = []
+        self.entriesClient = []
+        self.listProtocol = []
+        self.protocols = []
+        self.canvas = Canvas(self.top,width=1000,height=1000,bg='snow')
+        self.canvas.grid(row=0, column=0)
+        self.dict_hosts = dict_host
+        self.variables_server = []
+        self.clientserver = []
+        self.iperfwindow()
+
+    def plots(self):
+        variable=IntVar()
+        for i in range(0,len(self.dict_hosts)):
+            self.courbes.append([])
+        for j in range(0,len(self.dict_hosts)):
+            self.courbes[j].append(variable)
+
+    def server(self):
+        for i in range(0,len(self.dict_hosts)):
+            variable = StringVar()
+            variable.set(self.hostnames[0])
+            self.servers.append(variable)
+
+    def client(self):
+        for i in range(0,len(self.dict_hosts)):
+            self.clients.append([])
+
+        for i in range(0,len(self.clients)):
+            for j in range (0,len(self.dict_hosts)):
+                variable = IntVar()
+                self.clients[j].append(variable)
+
+    def names(self):
+        for name in self.dict_hosts.keys():
+            self.hostnames.append(name)
+
+    def setvariables(self):
+        for i in range (0,len(self.dict_hosts)):
+            self.variables_server.append(self.hostnames[0])
+
+    def changeserver(self,i,*args):
+        self.variables_server[i] = self.servers[i].get()
+
+    def create_dict(self,*args):
+
+        for i in range(0,len(self.dict_hosts)):
+            dict = {}
+            dict['serverNode'] = self.dict_hosts[self.variables_server[i]]
+            dict['serverName'] = self.variables_server[i]
+            dict['clientNodes'] = []
+            dict['clientNames'] = []
+
+            for j in range(0,len(self.dict_hosts)):
+                if(self.clients[i][j].get() == 1):
+                    dict['clientNodes'].append(self.dict_hosts[self.hostnames[j]])
+                    dict['clientNames'].append(self.hostnames[j])
+
+            self.clientserver.append(dict)
+
+        listClients = []
+        for dict in self.clientserver :
+            if(dict['clientNodes'] != []):
+                for i in range(0,len(dict['clientNodes'])):
+                    self.liste.append({'serverName' : dict['serverName'] , 'infos' : [ dict['serverNode'] , dict['serverName'], dict['clientNodes'][i] , dict['clientNames'][i] ] })
+                    listClients.append(dict['clientNames'][i])
+                self.listNameclients.append( {'serverName': dict['serverName'] , 'client' : listClients } )
+                listClients=[]
+                self.listNameservers.append(dict['serverName'])
+
+        for i in range(0,len(self.listNameservers)):
+            variable = StringVar()
+            variable.set('TCP')
+            self.listProtocol.append({'serverName' : self.listNameservers[i] , 'protocolvalue' : 'TCP' })
+            self.protocols.append({'serverName': self.listNameservers[i] , 'protocol' : variable})
+
+    def placetext(self,top):
+
+        canvas = Canvas(top,width=100,height=100)
+        canvas.place(x='10',y='10')
+        texte = Text(canvas)
+        scroll = Scrollbar(canvas,command=texte.yview)
+        texte.configure(yscrollcommand=scroll.set)
+        texte.config(state="normal")
+        texte.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
+        return texte
+
+    def changeProtocol(self,serverName,*args):
+        #pour changer le protocole correspondant
+        for dict in self.protocols :
+            if(dict['serverName'] == serverName):
+                varControle = dict['protocol']
+                break
+
+        for dict in self.listProtocol :
+            if(dict['serverName'] == serverName):
+                dict['protocolvalue'] = varControle.get()
+                break
+
+        print(self.listProtocol)
+
+    def properties(self,serverName):
+        root = Toplevel()
+        root.geometry('500x800')
+
+        rootClients = []
+        dicts = []
+
+        rootOutput = Toplevel()
+        rootOutput.geometry('600x600')
+        texte = self.placetext(rootOutput)
+
+        for element in self.liste :
+            if(element['serverName'] == serverName):
+                dicts.append(element)
+
+        for element in self.protocols :
+            if (element['serverName'] == serverName):
+                protocol = element['protocol']
+                break
+
+        listProtocol=['TCP','UDP']
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
+
+        #labelProperties=Label(dicts[0]['infos'][0],text='Server Properties' + ' for ' + serverName,font=helv36)
+        labelProperties=Label(root,text='Server Properties' + ' for ' + serverName,font=helv36)
+        labelProperties.place(x=10,y=10)
+
+        labelInterval=Label(root,text="Interval to display a report on bw (-i)")
+        labelInterval.place(x=10,y=65)
+        entryInterval=Entry(root,width=10)
+        entryInterval.place(x=260,y=65)
+
+        labelPort = Label(root,text="Port")
+        labelPort.place(x=10,y=95)
+        entryPort=Entry(root,width=10)
+        entryPort.place(x=260,y=95)
+
+        labelProtocol = Label(root,text="Protocol")
+        labelProtocol.place(x=10,y=125)
+        protocol.trace("w",partial(self.changeProtocol,serverName))
+        dropDownMenu=OptionMenu(root,protocol,*listProtocol)
+        dropDownMenu.place(x=260,y=125)
+
+        labelFilename = Label(root,text="Choose a file name")
+        labelFilename.place(x=10,y=155)
+        entryFilename=Entry(root,width=10)
+        entryFilename.place(x=260,y=155)
+
+        self.entries_server.append({'server': serverName , 'intervalEntry': entryInterval , 'portEntry' : entryPort , 'fileEntry' : entryFilename})
+
+        ord = 215
+        for i in range(0,len(dicts)): # nombre de clients
+            labelClient=Label(root, text = 'Client ' + dicts[i]['infos'][3] + " 's Properties",font=helv36)
+            labelClient.place(x=10,y=ord)
+
+            labelBandwidth = Label(root,text='Bandwidth')
+            labelBandwidth.place(x=10,y=ord+60)
+            entryBandwidth=Entry(root,width=10)
+            entryBandwidth.place(x=120,y=ord+60)
+
+            labelTest = Label(root,text='Test duration')
+            labelTest.place(x=10,y=ord+90)
+            entryTest=Entry(root,width=10)
+            entryTest.place(x=120,y=ord+90)
+            dictClient = {'serverName' : dicts[i]['serverName'] , 'clientName' : dicts[i]['infos'][3] , 'clientEntries' : [entryBandwidth,entryTest]}
+            self.entriesClient.append(dictClient)
+            bouton = Button(root,text='Test iperf',command = partial(self.iperf,texte,[ self.dict_hosts[ dicts[i]['infos'][3] ] , self.dict_hosts[serverName] ], protocol , entryBandwidth , entryTest , entryPort , entryInterval , entryFilename ) )
+            bouton.place(x=10,y=ord+120)
+            ord += 150
+
+        bouton = Button(root,text='Finish',command = lambda : root.destroy())
+        bouton.place(x=10,y=ord+30)
+
+    def iperfwindow(self):
+        setLogLevel('info')
+        self.names() # met à jour self.hostnames
+        self.client() # met à jour self.clients #IntVar
+        self.server() # met à jour self.servers #StringVar on les as tous settées à hostnames[0] il faut mettre set_trace
+        self.plots() # met à jour self.courbes
+        self.setvariables()
+        hostnames = self.hostnames
+
+        abscisse = 10
+        ordonnee = 10
+
+        abscisse_server = 10
+        ordonnees_server = 10
+
+        for i in range (0,len(self.dict_hosts)):
+            label_server = Label(self.canvas,text='server',font=("bold",10))
+            label_server.place(x=abscisse_server,y=ordonnees_server)
+            self.servers[i].trace("w",partial(self.changeserver,i))
+            dropDownMenu=OptionMenu(self.canvas,self.servers[i],*hostnames)
+            dropDownMenu.place(x=abscisse_server,y=ordonnees_server+30)
+            self.canvas.create_line((0,ordonnees_server+70),(1500,ordonnees_server+70))
+            ordonnees_server += 80
+
+        for j in range (0,len(self.dict_hosts)): #On passe à un autre serveur
+            for i in range (0,len(self.dict_hosts)):
+                label_client = Label(self.canvas,text=hostnames[i],font=("bold",10))
+                label_client.place(x=abscisse+100,y=ordonnee)
+                bouton = Checkbutton(self.canvas,variable=self.clients[j][i])
+                bouton.place(x=abscisse+180,y=ordonnee)
+                abscisse += 160
+            ordonnee += 80
+            abscisse = 10
+
+        bouton_ok=Button(self.top,text='OK',width=10,command=self.okAction)
+        bouton_ok.place(x=300,y=300)
+
+    def okAction(self):
+        self.create_dict()
+
+        for server in self.listNameservers :
+            self.properties(server)
+
+        self.top.destroy()
+
+    def find_key(self,v,dict):
+        for k, val in dict.items():
+            if v == val:
+                return k
+
+    def iperf( self,textserver, hosts, l4Type, udpBw,seconds,port,timeServer,fichier):
+        #rootserver = Toplevel()
+        #rootserver.geometry('600x600')
+        rootclient = Toplevel()
+        rootclient.geometry('600x600')
+        #textserver = self.placetext(rootserver)
+        textclient = self.placetext(rootclient)
+        client, server = hosts
+        [clientName,serverName] = [self.find_key(client,self.dict_hosts),self.find_key(server,self.dict_hosts)]
+        textclient.insert(INSERT,'*** Iperf: testing '+str(l4Type.get())+' bandwidth between '+str(client.name)+ ' and '+str(server.name)+ '\n')
+        server.cmd( 'killall -9 iperf' )
+        port1 = port.get()
+        port1 = int(port1)
+
+        #serveur
+        iperfArgs = 'iperf -p %d' % port1
+        timeServer1 = int(timeServer.get())
+        iperfArgs += ' -i %s '% timeServer1
+        bwArgs = '-b ' + udpBw.get() + ' '
+        if l4Type.get() == 'UDP':
+             iperfArgs += '-u '
+             bwArgs = '-b ' + udpBw.get() + ' '
+        elif l4Type.get() != 'TCP':
+              textclient.insert(INSERT,'Unexpected l4 type : ' + l4Type.get())
+              #textclient.config(state='disabled')
+              return
+        server.sendCmd(iperfArgs + '-s')
+        iperfArgs1='iperf -p %d ' % port1
+        bwArgs1 = '-b ' + udpBw.get() + ' '
+        if l4Type.get() == 'UDP':
+             iperfArgs1 += '-u '
+             bwArgs1 = '-b ' + udpBw.get() + ' '
+        elif l4Type.get() != 'TCP':
+              textclient.insert(INSERT,'Unexpected l4 type : ' + l4Type.get())
+              #textclient.config(state='disabled')
+              return
+
+        if l4Type.get() == 'TCP':
+            if not waitListening( client, server.IP(), port1):
+                textclient.insert(INSERT,'Could not connect to iperf on port ' + port.get())
+                return
+        seconds1 = int(seconds.get())
+        cliout = client.cmd( iperfArgs1 + '-t %d -c ' % seconds1 + server.IP() + ' ' + bwArgs1)
+        textclient.insert(INSERT,'Client output: ' + cliout + '\n')
+
+        servout = ''
+        count = 2 if l4Type.get() == 'TCP' else 1
+        while len( re.findall( '/sec', servout ) ) < count:
+            servout += server.monitor( timeoutms=5000 )
+        server.sendInt()
+        servout += server.waitOutput()
+        textserver.insert(INSERT,'Server output: ' + servout + '\n')
+        fileName = open(fichier.get(),'w')
+        fileName.write(servout)
+        fileName.close()
+        if(l4Type.get() == 'TCP'):
+
+            file = open(fichier.get(),'r')
+            lines = file.readlines()
+            for line in lines:
+                if 'sec' not in line:
+                    lines.remove(line)
+
+            for i in range(0,4):
+                lines.remove(lines[0])
+
+            for j in range(0,len(lines)):
+                lines[j]=lines[j][6:38]
+
+            lines.remove(lines[len(lines)-1])
+
+            abscisse = []
+            ordonnee = []
+
+            for j in range(0,len(lines)):
+                abscisse.append(float(lines[j][5:9]))
+                ordonnee.append(float(lines[j][27:32]))
+
+            plt.plot(abscisse,ordonnee,label='client : ' + clientName + ', server : ' + serverName)
+            plt.axis([min(abscisse),max(abscisse)+1,0, max(ordonnee)+1])
+            plt.xlabel('time')
+            plt.ylabel('bandwidth')
+            plt.legend()
+            plt.show()
+
+            file.close()
+
+        elif(l4Type.get() == 'UDP'):
+            file2=open(fichier.get(),'r')
+            lines2 = file2.readlines()
+            for line in lines2:
+                if 'sec' not in line:
+                    lines2.remove(line)
+
+            for i in range(0,3):
+                 lines2.remove(lines2[0])
+
+            lines2.remove(lines2[4])
+            lines2.remove(lines2[len(lines2)-1])
+
+            for j in range(0,len(lines2)):
+                lines2[j]=lines2[j][6:38]
+
+            lines2.remove(lines2[1])
+
+            abscisse2=[]
+            ordonnee2=[]
+            for j in range(0,len(lines2)):
+                abscisse2.append(float(lines2[j][5:9]))
+                ordonnee2.append(float(lines2[j][27:32]))
+
+            plt.plot(abscisse2,ordonnee2)
+            plt.axis([min(abscisse2),max(abscisse2)+1,0, max(ordonnee2)+1])
+            plt.xlabel('time')
+            plt.ylabel('bandwidth')
+            plt.show()
+
+            file2.close()
+
 class Interface():
 
     def __init__(self,window):
+        self.window = window
         self.click_widget=False
         self.link=None
         self.linkWidget=None
@@ -127,6 +1591,7 @@ class Interface():
         self.list_buttons={}
         self.buttons_canevas={}
         self.links={}
+        self.performances = ['Links','Iperf','Ping','Ifconfig','ip -a']
         self.itemToName={}
         self.liens=[]
         self.name_switch=[]
@@ -153,7 +1618,7 @@ class Interface():
         self.elements=['Switch','Host','Link','LegacyRouter','LegacySwitch','Controller']
         self.nodePref = {'Switch':'s','Host':'h','LegacyRouter':'r','LegacySwitch':'s','Controller':'c'}
         self.images=self.netImages()
-        self.create_buttons(window)
+        #self.create_buttons(window)
 
         self.s = ttk.Style()
         #self.s.configure('TFrame', background='yellow')
@@ -163,20 +1628,50 @@ class Interface():
         self.s.configure('Frame3.TFrame',background='snow')
 
         self.systemOnglet = ttk.Notebook(window,width=1500)
-        self.systemOnglet.place(x='55',y='0')
+        self.systemOnglet.place(x='0',y='0')
 
         self.firstOnglet = ttk.Frame(self.systemOnglet,width=1500,height=1500,style='Frame1.TFrame')
         self.firstOnglet.place(x='0',y='0')
         self.systemOnglet.add(self.firstOnglet,text='Topologie')
+        self.canvas1 = self.create_canvas_first(self.firstOnglet)
 
         self.secondOnglet = ttk.Frame(self.systemOnglet,width=1500,height=1500,style='Frame2.TFrame')
         self.secondOnglet.place(x='30',y='0')
         self.systemOnglet.add(self.secondOnglet,text='Tests de performance')
+        self.canvas2 = self.create_canvas_second(self.secondOnglet)
 
         self.thirdOnglet = ttk.Frame(self.systemOnglet,width=1500,height=1500,style='Frame3.TFrame')
         self.thirdOnglet.place(x='60',y='0')
         self.systemOnglet.add(self.thirdOnglet,text='Contrôleurs SDN')
+        self.canvas3 = self.create_canvas_third(self.thirdOnglet)
 
+        self.canvas_buttons=self.create_canvas_buttons(self.canvas1)
+        self.create_buttons(self.canvas_buttons)
+        self.canvas_performances = self.create_canvas_performances(self.canvas2)
+        self.create_buttons_performances(self.canvas_performances)
+
+        # Canvas for text
+        self.canvas_text = self.create_canvas_text(self.canvas2)
+        self.textCanvas = Text(self.canvas_text)
+        self.placeText()
+
+    def selectedNode(self):
+        return self.selectedNode
+
+    def hostOptions(self):
+        return self.hostOptions
+
+    def placeText (self):
+        scroll = Scrollbar(self.canvas_text,command=self.textCanvas.yview)
+        self.textCanvas.configure(yscrollcommand=scroll.set)
+        self.textCanvas.config(state="normal")
+        self.textCanvas.pack(side=LEFT)
+        self.textCanvas.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        self.textCanvas.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
+        self.textCanvas.tag_configure('police1',font=('Helvetica',12,'bold'))
+        self.textCanvas.tag_configure('colour',font=('Helvetica',16,'bold'),spacing1=30)
+        self.textCanvas.tag_configure('big',justify='center',font=('Helvetica',16,'bold'),foreground='RoyalBlue1',underline=1)
+        scroll.pack(side=RIGHT,fill=Y)
 
     def create_menu_bar(self,window):
         mainmenu = Menu(window)
@@ -191,7 +1686,7 @@ class Interface():
 
         sousmenu2=Menu(mainmenu,bg='white',tearoff=0)
         sousmenu2.add_command(label="Cut",font=helv36)
-        sousmenu2.add_command(label="Preferences",font=helv36,command=self.setPreferences)
+        sousmenu2.add_command(label="Preferences",font=helv36,command=self.prefdetails)
         mainmenu.add_cascade(label='Edit',menu=sousmenu2,font=helv36)
 
         sousmenu3=Menu(mainmenu,bg='white',font=helv36,tearoff=0)
@@ -202,18 +1697,18 @@ class Interface():
         mainmenu.add_cascade(label='Run',menu=sousmenu3,font=helv36)
 
         sousmenu4=Menu(mainmenu,bg='white',tearoff=0)
-        sousmenu4.add_command(label="Net",font=helv36,command=self.dumpNet)
-        sousmenu4.add_command(label="Ifconfig",font=helv36,command=self.chooseNode)
-        sousmenu4.add_command(label="Ping all hosts",font=helv36,command=self.pinghosts)
-        sousmenu4.add_command(label="Ping pair",font=helv36,command=self.pingpair)
-        sousmenu4.add_command(label="Iperf",font=helv36,command=self.iperf_test)
-        sousmenu4.add_command(label="List of Nodes",font=helv36,command=self.list_nodes)
+        #sousmenu4.add_command(label="Net",font=helv36,command=self.dumpNet)
+        #sousmenu4.add_command(label="Ifconfig",font=helv36,command=self.chooseNode)
+        #sousmenu4.add_command(label="Ping all hosts",font=helv36,command=self.pinghosts)
+        #sousmenu4.add_command(label="Ping pair",font=helv36,command=self.pingpair)
+        #sousmenu4.add_command(label="Iperf",font=helv36,command=self.iperf_test)
+        #sousmenu4.add_command(label="List of Nodes",font=helv36,command=self.listNodes)
         sousmenu4.add_command(label="Nodes and links informations",font=helv36,command=self.node_info)
-        sousmenu4.add_command(label="Ping packet",font=helv36,command=self.pingpacket)
+        #sousmenu4.add_command(label="Ping packet",font=helv36,command=self.pingpacket)
         sousmenu4.add_command(label='Preferences informations',font=helv36,command=self.preferencesinformations)
-        sousmenu4.add_command(label='ip a',font=helv36,command=self.ipa)
-        sousmenu4.add_command(label='links',font=helv36,command=self.linkinfo)
-        sousmenu4.add_command(label='Choose server and client',font=helv36,command=self.chooseServerClient)
+        #sousmenu4.add_command(label='ip a',font=helv36,command=self.ipa)
+        #sousmenu4.add_command(label='links',font=helv36,command=self.linkinfo)
+        #sousmenu4.add_command(label='Choose server and client',font=helv36,command=self.chooseServerClient)
         mainmenu.add_cascade(label='Command',font=helv36,menu=sousmenu4)
 
         sousmenu5=Menu(mainmenu,bg='white',tearoff=0)
@@ -222,11 +1717,53 @@ class Interface():
 
         window.config(menu=mainmenu)
 
+    def create_canvas_text(self,window):
+        canvas = Canvas(window,width=500,height=500,bg='gray')
+        canvas.place(x='150',y='50')
+        return canvas
+
+    def create_canvas_buttons(self,window):
+        canvas = Canvas(window,width='56',height='1500',bg='white')
+        canvas.place(x='0',y='0')
+        return canvas
+
+    def create_canvas_performances(self,window):
+        canvas = Canvas(window,width='120',height='1500',bg='white')
+        canvas.place(x='0',y='0')
+        return canvas
+
+    def create_canvas_first(self,window):
+        #canvas = Canvas(window,width='1000',height='1000',bg='pink')
+        canvas = Canvas(window,width='1500',height='1500',bg='SlateGray1')
+        canvas.place(x='0',y='0')
+        canvas.bind('<ButtonPress-1>',self.canvasHandle)
+        #canvas.bind('<B1-Motion>',self.dragCanevas)
+        #canvas.bind('<ButtonRelease-1>',self.dropCanevas)
+        return canvas
+
+    def create_canvas_second(self,window):
+        #canvas = Canvas(window,width='1000',height='1000',bg='pink')
+        canvas = Canvas(window,width='1500',height='1500',bg='SlateGray1')
+        canvas.place(x='0',y='0')
+        ##canvas.bind('<ButtonPress-1>',self.canvasHandle)
+        #canvas.bind('<B1-Motion>',self.dragCanevas)
+        #canvas.bind('<ButtonRelease-1>',self.dropCanevas)
+        return canvas
+
+    def create_canvas_third(self,window):
+        #canvas = Canvas(window,width='1000',height='1000',bg='pink')
+        canvas = Canvas(window,width='1500',height='1500',bg='SlateGray1')
+        canvas.place(x='0',y='0')
+        ##canvas.bind('<ButtonPress-1>',self.canvasHandle)
+        #canvas.bind('<B1-Motion>',self.dragCanevas)
+        #canvas.bind('<ButtonRelease-1>',self.dropCanevas)
+        return canvas
+
     def create_canvas(self,window):
         #canvas = Canvas(window,width='1000',height='1000',bg='pink')
         canvas = Canvas(window,width='1500',height='1500',bg='SlateGray1')
         canvas.place(x='55',y='0')
-        canvas.bind('<ButtonPress-1>',self.canvasHandle)
+        #canvas.bind('<ButtonPress-1>',self.canvasHandle)
         #canvas.bind('<B1-Motion>',self.dragCanevas)
         #canvas.bind('<ButtonRelease-1>',self.dropCanevas)
         return canvas
@@ -277,433 +1814,26 @@ class Interface():
         text2.pack(side=LEFT)
         scroll.pack(side=RIGHT,fill=Y)
 
-    def list_nodes(self):
-        root=Toplevel()
-        text2 = Text(root, height=10, width=40)
-        scroll = Scrollbar(root, command=text2.yview)
-        text2.configure(yscrollcommand=scroll.set)
-        text2.tag_configure('big',justify='center',font=('Helvetica',16,'bold'),foreground='RoyalBlue1',underline=1)
-        text2.tag_configure('color',font=('Helvetica',16,'bold'),spacing1=30)
-        text2.insert(END,'\nAvailable nodes\n','big')
-        #text2.pack(side=LEFT)
-        #scroll.pack(side=RIGHT, fill=Y)
-        text2.config(state="normal")
+    def listNodes(self):
+        self.textCanvas.config(state='normal')
+        self.textCanvas.delete('1.0',END)
+        self.textCanvas.insert(END,'\nAvailable nodes\n','big')
         for i in range(0,len(self.names)):
-            text2.insert(END,self.names[i]+ ' ','color')
-        text2.config(state='disabled')
-        text2.pack(side=LEFT)
-        scroll.pack(side=RIGHT,fill=Y)
+            self.textCanvas.insert( END , self.names[i] + ' ','colour')
+        self.textCanvas.config(state='disabled')
 
-    def ifconfig_test(self):
-        root=Toplevel()
-        text2=Text(root,height=50,width=100)
-        scroll = Scrollbar(root, command=text2.yview)
-        text2.configure(yscrollcommand=scroll.set)
-        text2.tag_configure('big',justify='center',font=('Helvetica',16,'bold'),foreground='RoyalBlue1',underline=1)
-        #text2.tag_configure('color',font=('Helvetica',16,'bold'),spacing1=30)
-        text2.tag_configure('police',font=('Helvetica',13,'bold'))
-        text2.config(state="normal")
-
-        text2.insert(END,"\n" + str(list_nodes[0]) + "'s interfaces\n"+'\n' + '\n','big')
-        if(list_nodes[0] in namehosts):
-            for host in self.name_host.keys():
-                 if(host == list_nodes[0]):
-                     result1=self.net.get(host)
-                     result2=result1.cmd('ifconfig')
-                     text2.insert(END,result2,'police')
-                     text2.config(state='disabled')
-                     text2.pack(side=LEFT)
-                     scroll.pack(side=RIGHT,fill=Y)
-                     return
-
-        if(list_nodes[0] in namecontrol):
-            #print("listenodes[0]"+str(list_nodes[0]))
-            for controller in self.namecontroller.keys():
-                if(list_nodes[0]== controller):
-                    result1=self.net.get(controller)
-                    result2=result1.cmd('ifconfig')
-                    text2.insert(END,result2,'police')
-                    text2.config(state='disabled')
-                    text2.pack(side=LEFT)
-                    scroll.pack(side=RIGHT,fill=Y)
-                    return
-
-        if(list_nodes[0] in nameswitches):
-            for switch in self.nameswitch.keys():
-                if(list_nodes[0]== switch):
-                    result1=self.net.get(switch)
-                    result2=result1.cmd('ifconfig')
-                    text2.insert(END,result2,'police')
-                    text2.config(state='disabled')
-                    text2.pack(side=LEFT)
-                    scroll.pack(side=RIGHT,fill=Y)
-                    return
-
-    def changeifconfig(self,*args):
-        list_nodes[0]=var_ifconfig.get()
-
-    def chooseNode(self):
-        global list_nodes
-        global namehosts
-        global namecontrol
-        global nameswitches
-        global var_ifconfig
-        var_ifconfig=StringVar()
-        namehosts=[]
-        namecontrol=[]
-        nameswitches=[]
-
-        for hostname in self.name_host.keys():
-            namehosts.append(hostname)
-
-        for switch in self.nameswitch.keys():
-            nameswitches.append(switch)
-
-        for controller in self.namecontroller.keys():
-            namecontrol.append(controller)
-
-        #list of nodes's names
-        namenode=namehosts+nameswitches+namecontrol
-        #print(namenode)
-
-        var_ifconfig.set(namenode[0])
-        var_ifconfig.trace("w",self.changeifconfig)
-        list_nodes=[namenode[0]]
-        #print('listnodes'+str(list_nodes))
-        root=Toplevel()
-        root.geometry('300x130')
-
-        helv36 = Font(family='Helvetica', size=10, weight='bold')
-        label=Label(root,text='Nodes interfaces',font=helv36)
-        label.place(x=100,y=0)
-
-        label1=Label(root,text='Choose node',font=helv36)
-        label1.place(x=110,y=30)
-
-        dropDownMenu=OptionMenu(root,var_ifconfig,*namenode)
-        dropDownMenu.place(x=85,y=60)
-
-        bouton = Button(root,text='OK',command=self.ifconfig_test)
-        bouton.place(x=175,y=60)
-
-
-    def changehostname2(self,*args):
-        host_names['host0']=var_name2.get()
-        hostnodes[0]=self.name_host[host_names['host0']]
-        #print("host_nodes"+str(host_nodes)+'\n')
-
-    def changehostname3(self,*args):
-        host_names['host1']=var_name3.get()
-        hostnodes[1]=self.name_host[host_names['host1']]
-        #print("host_nodes 1 " + str(host_nodes) + '\n')
-
-    def iperf_test(self):
-
-         global host_names
-         host_names={}
-         global hostnodes
-         hostnodes=[]
-         global var_name2
-         global var_name3
-         name_hosts=()
-         for host in self.name_host.keys():
-              name_hosts=name_hosts+(str(host),)
-
-         print(name_hosts)
-
-         root=Toplevel()
-         root.geometry("700x700")
-
-         # host_names contient les noms du 1er host se trouvant dans name_hists
-         host_names['host0']=name_hosts[0]
-         host_names['host1']=name_hosts[0]
-
-         hostnodes=[self.name_host[host_names['host0']],self.name_host[host_names['host1']]]
-
-         var_name2=StringVar()
-         var_name2.trace("w",self.changehostname2)
-
-         var_name3=StringVar()
-         var_name3.trace("w",self.changehostname3)
-
-         var_name2.set(name_hosts[0])
-         var_name3.set(name_hosts[0])
-
-         dropDownMenu=OptionMenu(root,var_name2,*name_hosts)
-         dropDownMenu.place(x=350,y=110)
-
-         dropDownMenu1=OptionMenu(root,var_name3,*name_hosts)
-         dropDownMenu1.place(x=500,y=110)
-
-         bouton = Button(root,text='OK',command=partial(self.iperff,hostnodes))
-         bouton.place(x=300,y=600)
-
-
-    def iperff( self, hosts=None, l4Type='TCP', udpBw='10M' ):
-        """Run iperf between two hosts.
-           hosts: list of hosts; if None, uses opposite hosts
-           l4Type: string, one of [ TCP, UDP ]
-           returns: results two-element array of server and client speeds"""
-        root=Toplevel()
-        text1=Text(root,height=100,width=200)
-        text1.config(state="normal")
-        if not quietRun( 'which telnet' ):
-            #error( 'Cannot find telnet in $PATH - required for iperf test' )
-            text1.insert(INSERT, 'Cannot find telnet in $PATH - required for iperf test')
-            text1.config(state='disabled')
-            text1.pack()
-            return
-        if not hosts:
-            hosts = [self.hosts[0],self.hosts[-1]]
-        else:
-            assert len(hosts) == 2
-        client, server = hosts
-        #output( '*** Iperf: testing ' + l4Type + ' bandwidth between ' )
-        text1.insert(INSERT,'*** Iperf: testing ' + l4Type + ' bandwidth between ')
-        #output( "%s and %s\n" % ( client.name, server.name ) )
-        text1.insert(INSERT,str(client.name) + ' and '+ str(server.name)+'\n')
-        server.cmd( 'killall -9 iperf' )
-        iperfArgs = 'iperf '
-        bwArgs = ''
-        if l4Type == 'UDP':
-            iperfArgs += '-u '
-            bwArgs = '-b ' + udpBw + ' '
-        elif l4Type != 'TCP':
-            raise Exception( 'Unexpected l4 type: %s' % l4Type )
-        server.sendCmd( iperfArgs + '-s', printPid=True )
-        servout = ''
-        while server.lastPid is None:
-            servout += server.monitor()
-        while 'Connected' not in client.cmd(
-            'sh -c "echo A | telnet -e A %s 5001"' % server.IP()):
-            #output('waiting for iperf to start up')
-            text1.insert(INSERT,'waiting for iperf to start up')
-            sleep(.5)
-        cliout = client.cmd( iperfArgs + '-t 5 -c ' + server.IP() + ' ' +
-                           bwArgs )
-        #debug( 'Client output: %s\n' % cliout )
-        text1.insert(INSERT,'Client output: ' + str(cliout) + '\n')
-        server.sendInt()
-        servout += server.waitOutput()
-        #debug( 'Server output: %s\n' % servout )
-        text1.insert(INSERT,'Server output: ' + str(servout) + '\n')
-        r = r'([\d\.]+ \w+/sec)'
-        m = re.findall(r,servout)
-        if m:
-            #return m[-1]
-            iperfservout=m[-1]
-        else:
-            # was: raise Exception(...)
-            #error( 'could not parse iperf output: ' + iperfOutput )
-            text1.insert(INSERT,'could not parse iperf output: ' + servout )
-            iperfservout = ''
-
-        r = r'([\d\.]+ \w+/sec)'
-        m1 = re.findall(r,cliout)
-        if m1:
-            #return m[-1]
-            iperfcliout=m1[-1]
-        else:
-            # was: raise Exception(...)
-            #error( 'could not parse iperf output: ' + iperfOutput )
-            text1.insert(INSERT,'could not parse iperf output: ' + cliout )
-            iperfcliout = ''
-        #result = [ self._parseIperf( servout ), self._parseIperf( cliout ) ]
-        result = [iperfservout,iperfservout]
-        if l4Type == 'UDP':
-            result.insert( 0, udpBw )
-        #output( '*** Results: %s\n' % result )
-        text1.insert(INSERT,'*** Results: ')
-        text1.insert(INSERT,result)
-        text1.insert(INSERT,'\n')
-        text1.config(state='disabled')
-        text1.pack()
-        return result
-
-    def ipeerf( self, hosts, l4Type, udpBw,seconds,port,timeServer,fichier):
-        #hosts = hosts or [ self.hosts[ 0 ], self.hosts[ -1 ] ]
-        print('l4Tyyyyyype'+l4Type[0])
-        root1=Toplevel()
-        text2=Text(root1,height=100,width=200)
-        text2.config(state="normal")
-
-        root=Toplevel()
-        text1=Text(root,height=100,width=200)
-        text1.config(state="normal")
-        assert len( hosts ) == 2
-        client, server = hosts
-        # # output( '*** Iperf: testing', l4Type, 'bandwidth between',
-        # #         client, 'and', server, '\n' )
-        text1.insert(INSERT,'*** Iperf: testing '+str(l4Type[0])+' bandwidth between '+str(client.name)+ ' and '+str(server.name)+ '\n')
-        server.cmd( 'killall -9 iperf' )
-        # print(port)
-        # print('\n')
-        port1 = int(port.get())
-
-        #serveur
-        iperfArgs = 'iperf -p %d' % port1
-        timeServer1 = int(timeServer.get())
-        iperfArgs += ' -i %s '% timeServer1
-        bwArgs = '-b ' + udpBw.get() + ' '
-        if l4Type[0] == 'UDP':
-             print('l4typeee : udppp')
-             iperfArgs += '-u '
-             bwArgs = '-b ' + udpBw.get() + ' '
-        elif l4Type[0] != 'TCP':
-        #     raise Exception( 'Unexpected l4 type: %s' % l4Type )
-              text1.insert(INSERT,'Unexpected l4 type : ' + str(l4Type[0]))
-              return
-        # # if fmt:
-        # #     iperfArgs += '-f %s ' % fmt
-        server.sendCmd(iperfArgs + '-s')
-        #client
-        iperfArgs1='iperf -p %d ' % port1
-        bwArgs1 = '-b ' + udpBw.get() + ' '
-        if l4Type[0] == 'UDP':
-             print('iperfArgs1:clieeent')
-             iperfArgs1 += '-u '
-             bwArgs1 = '-b ' + udpBw.get() + ' '
-        elif l4Type[0] != 'TCP':
-              text1.insert(INSERT,'Unexpected l4 type : ' + str(l4Type[0]))
-              return
-
-        if l4Type[0] == 'TCP':
-            if not waitListening( client, server.IP(), port1):
-                # raise Exception( 'Could not connect to iperf on port %d'
-                #                  % port )
-                text1.insert(INSERT,'Could not connect to iperf on port ' + port.get())
-                return
-        seconds1 = int(seconds.get())
-        cliout = client.cmd( iperfArgs1 + '-t %d -c ' % seconds1 +
-                             server.IP() + ' ' + bwArgs1)
-        text1.insert(INSERT,'Client output: ' + cliout + '\n')
-        text1.config(state='disabled')
-        text1.pack(side=LEFT)
-        servout = ''
-        # We want the last *b/sec from the iperf server output
-        # for TCP, there are two of them because of waitListening
-        count = 2 if l4Type[0] == 'TCP' else 1
-        while len( re.findall( '/sec', servout ) ) < count:
-            servout += server.monitor( timeoutms=5000 )
-        server.sendInt()
-        servout += server.waitOutput()
-        #debug( 'Server output: %s\n' % servout )
-        text2.insert(INSERT,'Server output: ' + servout + '\n')
-        text2.config(state='disabled')
-        text2.pack(side=LEFT)
-        file1 = open(fichier.get(),'w')
-        file1.write(servout)
-        file1.close()
-        if(l4Type[0] == 'TCP'):
-            file=open(fichier.get(),'r')
-            lines = file.readlines()
-            for line in lines:
-                if 'sec' not in line:
-                    lines.remove(line)
-
-            for i in range(0,4):
-                lines.remove(lines[0])
-
-            for j in range(0,len(lines)):
-                lines[j]=lines[j][6:38]
-
-            lines.remove(lines[len(lines)-1])
-            print(lines)
-            print('\n')
-            abscisse = []
-            ordonnee = []
-
-            for j in range(0,len(lines)):
-                abscisse.append(float(lines[j][5:9]))
-                ordonnee.append(float(lines[j][27:32]))
-
-            print(abscisse)
-            print('\n')
-            print(ordonnee)
-
-            plt.plot(abscisse,ordonnee)
-            plt.axis([min(abscisse),max(abscisse)+1,0, max(ordonnee)+1])
-            plt.xlabel('time')
-            plt.ylabel('bandwidth')
-            plt.show()
-
-            file.close()
-        elif(l4Type[0] == 'UDP'):
-            file2=open(fichier.get(),'r')
-            lines2 = file2.readlines()
-            for line in lines2:
-                if 'sec' not in line:
-                    lines2.remove(line)
-
-            #print(lines2)
-
-            for i in range(0,3):
-                 lines2.remove(lines2[0])
-
-            lines2.remove(lines2[4])
-            #print(lines2)
-            #print('\n')
-
-            lines2.remove(lines2[len(lines2)-1])
-
-            # lines2.remove(lines2[len(lines2)-2])
-
-            for j in range(0,len(lines2)):
-                lines2[j]=lines2[j][6:38]
-
-            print(lines2)
-
-            lines2.remove(lines2[1])
-
-            abscisse2=[]
-            ordonnee2=[]
-            for j in range(0,len(lines2)):
-                abscisse2.append(float(lines2[j][5:9]))
-                ordonnee2.append(float(lines2[j][27:32]))
-
-            print(abscisse2)
-            print(ordonnee2)
-
-            plt.plot(abscisse2,ordonnee2)
-            plt.axis([min(abscisse2),max(abscisse2)+1,0, max(ordonnee2)+1])
-            plt.xlabel('time')
-            plt.ylabel('bandwidth')
-            plt.show()
-
-            file2.close()
-            # print(abscisse2)
-            # print('\n')
-            # print(ordonnee2)
-
-        # result = [ self._parseIperf( servout ), self._parseIperf( cliout ) ]
-        # if l4Type == 'UDP':
-        #     result.insert( 0, udpBw )
-        # output( '*** Results: %s\n' % result )
-        # return result
 
     def pinghosts(self,hosts=None,timeout=None ):
-        root=Toplevel()
-        text1=Text(root,height=10,width=80)
-        scroll = Scrollbar(root, command=text1.yview)
-        text1.configure(yscrollcommand=scroll.set)
-        text1.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
-        text1.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
-        text1.tag_configure('police1',font=('Helvetica',12,'bold'))
-        text1.config(state="normal")
-        #hosts=self.hosts
-
+        self.textCanvas.config(state='normal')
+        self.textCanvas.delete('1.0',END)
         packets = 0
         lost = 0
         ploss = None
         if not hosts:
-            #print('hosts are not null')
             hosts = self.hosts
-            #print(hosts)
-            #output( '*** Ping: testing ping reachability\n' )
-            text1.insert(END,'\n\n*** Ping: testing ping reachability between hosts\n\n','modif')
+            self.textCanvas.insert(END,'\n\n*** Ping: testing ping reachability between hosts\n\n')
         for node in hosts:
-            #output( '%s -> ' % node.name )
-            text1.insert(END,str(node.name) + ' ' + '-> ','police')
+            self.textCanvas.insert(END,str(node.name) + ' ' + '-> ')
             for dest in hosts:
                 if node != dest:
                     opts = ''
@@ -717,237 +1847,53 @@ class Interface():
                             r = r'(\d+) packets transmitted, (\d+)( packets)? received'
                             m = re.search(r,result)
                             if m is None:
-                                #error( '*** Error: could not parse ping output: %s\n' % pingOutput)
-                                text1.insert(END,'*** Error: could not parse ping output: ' + str(result) + '\n','police')
+                                self.textCanvas.insert(END,'*** Error: could not parse ping output: ' + str(result) + '\n')
                                 (sent,received)=(1,0)
                             else:
                                 (sent,received) = (int(m.group(1)),int(m.group(2)))
-                                #sent, received = self._parsePing(result)
                     else:
                         sent, received = 0, 0
                     packets += sent
                     if received > sent:
-                        #error( '*** Error: received too many packets' )
-                        text1.insert(END,'*** Error: received too many packets','police')
-                        #error( '%s' % result )
-                        text1.insert(INSERT,str(result))
+                        self.textCanvas.insert(END,'*** Error: received too many packets')
+                        self.textCanvas.insert(INSERT,str(result))
                         node.cmdPrint('route')
                         exit(1)
                     lost += sent - received
-                    #output( ( '%s ' % dest.name ) if received else 'X ' )
                     if received :
-                        text1.insert(INSERT,str(dest.name),'police1')
+                        self.textCanvas.insert(INSERT,str(dest.name))
                     else:
-                        text1.insert(INSERT,str('X'),'police1')
-            #output( '\n' )
-            text1.insert(INSERT,str('\n'))
+                        self.textCanvas.insert(INSERT,str('X'))
+            self.textCanvas.insert(INSERT,str('\n'))
         if packets > 0:
             ploss = 100.0 * lost / packets
             received = packets - lost
-            #output( "*** Results: %i%% dropped (%d/%d received)\n" %
-                    #( ploss, received, packets ))
-            text1.insert(END,"*** Results: "+str(ploss)+' '+'dropped ('+str(received)+'/'+str(packets)+'received)\n','police')
+            self.textCanvas.insert(END,"*** Results: "+str(ploss)+' '+'dropped ('+str(received)+'/'+str(packets)+'received)\n')
         else:
             ploss = 0
-            #output( "*** Warning: No packets sent\n" )
-            text1.insert(END,"*** Warning: No packets sent\n",'police')
-        text1.config(state='disabled')
-        text1.pack(side=LEFT)
-        scroll.pack(side=RIGHT,fill=Y)
+            self.textCanvas.insert(END,"*** Warning: No packets sent\n")
+        self.textCanvas.config(state='disabled')
         return ploss
 
-    def changenode(self,*args):
-        name1[0]=varnode.get()
-
-    def ipa(self):
-        global node1
-        global name1
-
-        listname=[]
-        for switch in self.nameswitch.keys():
-            listname.append(switch)
-        for host in self.name_host.keys():
-            listname.append(host)
-
-        name1=[listname[0]]
-
-        global varnode
-        varnode=StringVar()
-        varnode.set(listname[0])
-        varnode.trace("w",self.changenode)
-
-        root=Toplevel()
-        text1=Text(root,height=10,width=80)
-        scroll = Scrollbar(root, command=text1.yview)
-        text1.configure(yscrollcommand=scroll.set)
-        text1.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
-        text1.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
-        text1.tag_configure('police1',font=('Helvetica',12,'bold'))
-        text1.config(state="normal")
-        dropdownmenu = OptionMenu(root,varnode,*listname)
-        dropdownmenu.place(x=20,y=30)
-        bouton=Button(root,text='OK',command=partial(self.ipa1,name1))
-        bouton.place(x=80,y=30)
-        text1.config(state='disabled')
-        text1.pack(side=LEFT)
-        scroll.pack(side=RIGHT,fill=Y)
-
-    def ipa1(self,names):
-        root=Toplevel()
-        text1=Text(root)
-        scroll = Scrollbar(root, command=text1.yview)
-        text1.configure(yscrollcommand=scroll.set)
-        text1.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
-        text1.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
-        text1.tag_configure('police1',font=('Helvetica',12,'bold'))
-        text1.config(state="normal")
-        if names[0] in self.nameswitch.keys():
-            node2=self.nameswitch[names[0]]
-            links, _err, _result = node2.pexec( 'ip link show' )
-            text1.insert(END,links)
-            text1.config(state='disabled')
-            text1.pack(side=LEFT)
-            scroll.pack(side=RIGHT,fill=Y)
-            return
-        elif names[0] in self.name_host.keys():
-            node2=self.name_host[names[0]]
-            links, _err, _result = node2.pexec('ip link show')
-            text1.insert(END,links)
-            text1.config(state='disabled')
-            text1.pack(side=LEFT)
-            scroll.pack(side=RIGHT,fill=Y)
-
-    def changename(self):
-        name3[0]= varname1.get()
-
-    def changename1(self):
-        name4[0]=varname2.get()
-
-    def linkinfo(self):
+    def linkInfo(self):
+        self.textCanvas.config(state='normal')
+        self.textCanvas.delete('1.0',END)
         listlinks=[]
-        root=Toplevel()
         for link in self.links.keys():
             if(self.links[link]['type'] == 'data'):
                 src=self.net.get(self.links[link]['src'])
                 dst=self.net.get(self.links[link]['dest'])
                 linkss=self.net.linksBetween(src,dst)
                 listlinks.append(linkss)
-        text1=Text(root)
-        scroll = Scrollbar(root, command=text1.yview)
-        text1.configure(yscrollcommand=scroll.set)
-        text1.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
-        text1.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
-        text1.tag_configure('police1',font=('Helvetica',12,'bold'))
-        text1.config(state="normal")
-        #print(linkss)
         for link2 in listlinks:
-            text1.insert(INSERT,link2[0].__str__())
-            text1.insert(INSERT,link2[0].status())
-            text1.insert(INSERT,'\n')
-        text1.config(state='disabled')
-        text1.pack(side=LEFT)
-        scroll.pack(side=RIGHT,fill=Y)
-
-
-    def pingpacket1(self,hosts,number):
-        root=Toplevel()
-        text1=Text(root,height=10,width=80)
-        scroll = Scrollbar(root, command=text1.yview)
-        text1.configure(yscrollcommand=scroll.set)
-        text1.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
-        text1.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
-        text1.tag_configure('police1',font=('Helvetica',12,'bold'))
-        text1.config(state="normal")
-        h1=self.net.get(hosts['host0'])
-        h2=self.net.get(hosts['host1'])
-        #h2int1=h2.intf('h2-eth0')
-        text1.insert(END,'\nExchanged packets between ' + hosts['host0'] + ' and '  + hosts['host1']+'\n'+'\n')
-        result= h1.cmd('ping -c %s %s' % (number[0],h2.IP()))
-        text1.insert(END,result)
-        text1.config(state='disabled')
-        text1.pack(side=LEFT)
-        scroll.pack(side=RIGHT,fill=Y)
-
-    #ping between two hosts
-    def pinghosts1(self,hosts=None,timeout=None ):
-        root=Toplevel()
-        text1=Text(root,height=10,width=80)
-        scroll = Scrollbar(root, command=text1.yview)
-        text1.configure(yscrollcommand=scroll.set)
-        text1.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
-        text1.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
-        text1.tag_configure('police1',font=('Helvetica',12,'bold'))
-        text1.config(state="normal")
-        #hosts=self.hosts
-
-        text1.insert(END,'\nPing : Testing ping reachability between ' + str(hosts[0]) + ' and ' + str(hosts[1]) + '\n\n','modif')
-        packets = 0
-        lost = 0
-        ploss = None
-        #if not hosts:
-        #print('hosts are not null')
-        #hosts = self.hosts
-        #print(hosts)
-        #output( '*** Ping: testing ping reachability\n' )
-        #text1.insert(END,'\n\n*** Ping: testing ping reachability\n\n','modif')
-        for node in hosts:
-            #output( '%s -> ' % node.name )
-            text1.insert(END,str(node.name) + ' ' + '-> ','police')
-            for dest in hosts:
-                if node != dest:
-                    opts = ''
-                    if timeout:
-                        opts = '-W %s' % timeout
-                    if dest.intfs:
-                        result = node.cmd('ping -c1 %s %s' % (opts, dest.IP()))
-                        if 'connect: Network is unreachable' in result:
-                            (sent,received) = (1,0)
-                        else:
-                            r = r'(\d+) packets transmitted, (\d+)( packets)? received'
-                            m = re.search(r,result)
-                            if m is None:
-                                #error( '*** Error: could not parse ping output: %s\n' % pingOutput)
-                                text1.insert(END,'*** Error: could not parse ping output: ' + str(result) + '\n','police')
-                                (sent,received)=(1,0)
-                            else:
-                                (sent,received) = (int(m.group(1)),int(m.group(2)))
-                                #sent, received = self._parsePing(result)
-                    else:
-                        sent, received = 0, 0
-                    packets += sent
-                    if received > sent:
-                        #error( '*** Error: received too many packets' )
-                        text1.insert(END,'*** Error: received too many packets','police')
-                        #error( '%s' % result )
-                        text1.insert(INSERT,str(result))
-                        node.cmdPrint('route')
-                        exit(1)
-                    lost += sent - received
-                    #output( ( '%s ' % dest.name ) if received else 'X ' )
-                    if received :
-                        text1.insert(INSERT,str(dest.name),'police1')
-                    else:
-                        text1.insert(INSERT,str('X'),'police1')
-            #output( '\n' )
-            text1.insert(INSERT,str('\n'))
-        if packets > 0:
-            ploss = 100.0 * lost / packets
-            received = packets - lost
-            #output( "*** Results: %i%% dropped (%d/%d received)\n" %
-                    #( ploss, received, packets ))
-            text1.insert(END,"*** Results: "+str(ploss)+' '+'dropped ('+str(received)+'/'+str(packets)+'received)\n','police')
-        else:
-            ploss = 0
-            #output( "*** Warning: No packets sent\n" )
-            text1.insert(END,"*** Warning: No packets sent\n",'police')
-        text1.config(state='disabled')
-        text1.pack(side=LEFT)
-        scroll.pack(side=RIGHT,fill=Y)
-        return ploss
+            self.textCanvas.insert(INSERT,link2[0].__str__())
+            self.textCanvas.insert(INSERT,link2[0].status())
+            self.textCanvas.insert(INSERT,'\n')
+        self.textCanvas.config(state='disabled')
 
     def create_buttons(self,window):
         abs=0;
-        ord=0;
+        ord=10;
         helv36 = Font(family='Helvetica', size=10, weight='bold')
         for n in self.elements :
             cmd=(lambda t=n:self.activate_widget(t))
@@ -960,9 +1906,54 @@ class Interface():
         bouton1.place(x=str(abs),y=550)
         bouton2=Button(window,text='Stop',command=self.stop,bg='white',width=3,font=helv36)
         bouton2.place(x=str(abs),y=600)
-        #print(self.list_buttons)
 
-#activate a widget in the toolbar
+    def create_buttons_performances(self,window):
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
+        boutonLink=Button(window,width=5,height=2,bg='white',text='Links',font=helv36,command=self.linkInfo)
+        boutonLink.place(x='5',y='10')
+        boutonNet=Button(window,width=5,height=2,bg='white',text='Net',font=helv36,command=self.dumpNet)
+        boutonNet.place(x='5',y='70')
+        boutonIpa=Button(window,width=5,height=2,bg='white',text='ipa',font=helv36,command=self.commandIpa)
+        boutonIpa.place(x='5',y='130')
+        boutonPinghosts = Button(window,width=5,height=2,bg='white',text='ping hosts',font=helv36,command=self.pinghosts)
+        boutonPinghosts.place(x='5',y='190')
+        boutonPingpair = Button(window,width=5,height=2,bg='white',text='ping pair',font=helv36,command=self.pingpair)
+        boutonPingpair.place(x='5',y='250')
+        boutonNodes = Button(window,width=5,height=2,bg='white',text='Nodes',font=helv36,command=self.listNodes)
+        boutonNodes.place(x='5',y='310')
+        boutonIfconfig = Button(window,width=5,height=2,bg='white',text='Ifconfig',font=helv36,command=self.ifconfig)
+        boutonIfconfig.place(x='5',y='370')
+        boutonPingPacket = Button(window,width=5,height=2,bg='white',text='Ping Packet',font=helv36,command=self.pingPacket)
+        boutonPingPacket.place(x='5',y='430')
+        boutonIperf = Button(window,width=5,height=2,bg='white',text='Iperf',font=helv36,command=self.iperf)
+        boutonIperf.place(x='5',y='490')
+        boutonserver = Button(window,width=5,height=2,bg='white',text='serverOrclient',font=helv36,command=self.iperfserver)
+        boutonserver.place(x='5',y='550')
+
+    def iperfserver(self):
+        iperfwindow = serverOrClient(self.window,self.name_host)
+        self.window.wait_window(iperfwindow.top)
+
+    def ifconfig(self):
+        ifconfigwindow = ifconfigWindow(self.window,self.name_host,self.nameswitch,self.namecontroller,self.textCanvas,self.net)
+        self.window.wait_window(ifconfigwindow.top)
+
+    def pingpair(self):
+        pingwindow= pingWindow(self.window,self.name_host,self.textCanvas)
+        self.window.wait_window(pingwindow.top)
+
+    def commandIpa (self) :
+        ipawindow = ipaWindow(self.window,self.nameswitch,self.name_host,self.textCanvas)
+        self.window.wait_window(ipawindow.top)
+
+    def pingPacket(self):
+        pingpacketwindow = pingPacketWindow(self.window,self.name_host,self.textCanvas,self.net)
+        self.window.wait_window(pingpacketwindow.top)
+
+    def iperf(self):
+        iperfwindow = iperfWindow(self.window,self.name_host,self.textCanvas,self.net)
+        self.window.wait_window(iperfwindow.top)
+
     def activate_widget(self,nodeName):
         if self.activeButton == None:
             self.list_buttons[nodeName].config(relief='sunken')
@@ -976,9 +1967,9 @@ class Interface():
     def nvTopology(self):
         for bouton in self.buttons_canevas.values():
             item=self.widgetToItem[bouton]
-            self.canvas.delete(item)
+            self.canvas1.delete(item)
         for i in range(0,len(self.liens)):
-            self.canvas.delete(self.liens[i])
+            self.canvas1.delete(self.liens[i])
         self.buttons_canevas={}
         self.links={}
         self.coordonnees={"i0":0,"j0":0,"i1":0,"j1":0}
@@ -1010,8 +2001,8 @@ class Interface():
             self.hostNumber += 1
         if (nodeName == 'Controller'):
             self.controllerNumber += 1
-        icon=Button(self.canvas,image=self.images[nodeName])
-        item=self.canvas.create_window(x,y,anchor='center',window=icon)
+        icon=Button(self.canvas1,image=self.images[nodeName])
+        item=self.canvas1.create_window(x,y,anchor='center',window=icon)
         self.widgetToItem[icon]=item
         self.itemToWidget[item]=icon
 
@@ -1064,7 +2055,7 @@ class Interface():
 
     def make_draggable_legacyRouter(self,widget):
         widget.bind("<Button-1>", self.click)
-        widget.bind("<B1-Motion>", self.drag)
+        #widget.bind("<B1-Motion>", self.drag)
         widget.bind("<ButtonRelease-1>",self.release)
         widget.bind("<Button-3>",self.popup_legacyrouter)
 
@@ -1075,14 +2066,13 @@ class Interface():
             self.on_drag_start(event)
 
     def drag(self,event):
-        if (self.activeButton == 'Link'):
-            self.dragLink(event)
-        else:
-            self.on_drag_motion(event)
+         if (self.activeButton == 'Link'):
+             self.dragLink(event)
+         #else:
+             #self.on_drag_motion(event)
 
     def release(self,event):
         if (self.activeButton == "Link"):
-            #print("helloo")
             self.finishLink(event)
 
     def on_drag_start(self,event):
@@ -1093,7 +2083,7 @@ class Interface():
     def on_drag_motion(self,event):
         widget = event.widget
         item=self.widgetToItem[widget]
-        x1,y1=self.canvas.coords(item)
+        x1,y1=self.canvas1.coords(item)
         x = widget.winfo_x() - widget._drag_start_x + event.x
         y = widget.winfo_y() - widget._drag_start_y + event.y #coordonnées d'arrivée
         widget.place(x=x, y=y) #j'ai ajusté la position du noeud
@@ -1113,19 +2103,110 @@ class Interface():
         for bouton in self.list_buttons.values():
             etat_bouton =str(bouton['state'])
             if etat_bouton == 'disabled':
-                popup_menu=Menu(self.canvas,tearoff=0)
+                popup_menu=Menu(self.canvas1,tearoff=0)
                 popup_menu.add_command(label="Terminal",command=self.xterm)
                 popup_menu.post(event.x_root,event.y_root)
                 return
-        popup_menu=Menu(self.canvas,tearoff=0)
-        popup_menu.add_command(label="Host Properties",command=self.hostProperties)
+        popup_menu=Menu(self.canvas1,tearoff=0)
+        popup_menu.add_command(label="Host Properties",command=self.hostdetails)
         popup_menu.post(event.x_root,event.y_root)
+
+    def switchdetails(self):
+        setLogLevel('info')
+        name_switch = self.switchOptions[self.selectedNode]['nameSwitch']
+        switchwindow = switchWindow(self.window,name_switch)
+        self.window.wait_window(switchwindow.top)
+        if switchwindow.result:
+            newOptions = {'nodeNum':self.switchOptions[self.selectedNode]['numSwitch']}
+            newOptions['switchType'] = switchwindow.result['switchType']
+            newOptions['controllers'] = self.switchOptions[self.selectedNode]['options']['controllers']
+            if len(switchwindow.result['startCommand']) > 0:
+                newOptions['startCommand'] = switchwindow.result['startCommand']
+            if len(switchwindow.result['stopCommand']) > 0:
+                newOptions['stopCommand'] = switchwindow.result['stopCommand']
+            if len(switchwindow.result['dpctl']) > 0:
+                newOptions['dpctl'] = switchwindow.result['dpctl']
+            if len(switchwindow.result['dpid']) > 0:
+                newOptions['dpid'] = switchwindow.result['dpid']
+            if len(switchwindow.result['hostname']) > 0:
+                newOptions['hostname'] = switchwindow.result['hostname']
+            if len(switchwindow.result['externalInterfaces']) > 0:
+                newOptions['externalInterfaces'] = switchwindow.result['externalInterfaces']
+            newOptions['switchIP'] = switchwindow.result['switchIP']
+            newOptions['sflow'] = switchwindow.result['sflow']
+            newOptions['netflow'] = switchwindow.result['netflow']
+            self.switchOptions[self.selectedNode]['options'] = newOptions
+            info( 'New switch details for ' + name_switch + ' = ' + str(newOptions), '\n' )
+
+    def hostdetails(self):
+        setLogLevel('info')
+        name_host = self.hostOptions[self.selectedNode]['hostname']
+        hostwindow = hostWindow(self.window,name_host)
+        self.window.wait_window(hostwindow.top)
+
+        if hostwindow.result:
+            newOptions = {'nodeNum':self.hostOptions[self.selectedNode]['numhost']}
+            newOptions['sched'] = hostwindow.result['sched']
+            if len(hostwindow.result['startCommand']) > 0:
+                newOptions['startCommand'] = hostwindow.result['startCommand']
+            if len(hostwindow.result['stopCommand']) > 0:
+                newOptions['stopCommand'] = hostwindow.result['stopCommand']
+            if len(hostwindow.result['cpu']) > 0:
+                newOptions['cpu'] = float(hostwindow.result['cpu'])
+            if len(hostwindow.result['cores']) > 0:
+                newOptions['cores'] = hostwindow.result['cores']
+            if len(hostwindow.result['hostname']) > 0:
+                newOptions['hostname'] = hostwindow.result['hostname']
+            if len(hostwindow.result['defaultRoute']) > 0:
+                newOptions['defaultRoute'] = hostwindow.result['defaultRoute']
+            if len(hostwindow.result['ip']) > 0:
+                newOptions['ip'] = hostwindow.result['ip']
+            if len(hostwindow.result['externalInterfaces']) > 0:
+                newOptions['externalInterfaces'] = hostwindow.result['externalInterfaces']
+            if len(hostwindow.result['vlanInterfaces']) > 0:
+                newOptions['vlanInterfaces'] = hostwindow.result['vlanInterfaces']
+            if len(hostwindow.result['privateDirectory']) > 0:
+                newOptions['privateDirectory'] = hostwindow.result['privateDirectory']
+            self.hostOptions[self.selectedNode]['options']=newOptions
+            info('New host details for ' + newOptions['hostname'] + '=' + str(newOptions) + '\n')
+
+    def ctrldetails(self):
+        setLogLevel('info')
+        nameCtrl = self.controllerOptions[self.selectedNode]['hostname']
+        ctrlwindow = ctrlWindow(self.window,nameCtrl)
+        self.window.wait_window(ctrlwindow.top)
+        if ctrlwindow.result:
+            newOptions = {'controllerType':ctrlwindow.result['controllerType'],'controllerProtocol':ctrlwindow.result['controllerProtocol']}
+            if len(ctrlwindow.result['hostname']) > 0:
+                newOptions['hostname']= ctrlwindow.result['hostname']
+            if len(ctrlwindow.result['remotePort']) > 0:
+                newOptions['remotePort']= ctrlwindow.result['remotePort']
+            if len(ctrlwindow.result['remoteIP']) > 0:
+                newOptions['remoteIP']= ctrlwindow.result['remoteIP']
+            self.controllerOptions[self.selectedNode]['options'] = newOptions
+            info( 'New controller details for ' + newOptions['hostname'] + ' = ' + str(newOptions), '\n' )
+
+    def linkdetails(self):
+        setLogLevel('info')
+        linkwindow = linkWindow(self.window)
+        self.window.wait_window(linkwindow.top)
+        if linkwindow.result is not None:
+            self.links[self.selectedLink]['options']=linkwindow.result
+            info( 'New link details = ' + str(linkwindow.result), '\n' )
+
+    def prefdetails(self):
+        setLogLevel('info')
+        prefwindow = prefWindow(self.window)
+        self.window.wait_window(prefwindow.top)
+        info( 'New Prefs = ' + str(prefwindow.result), '\n' )
+        if prefwindow.result:
+            self.preferences = prefwindow.result
 
     def popup_controller(self,event):
         item=event.widget
         self.selectedNode=event.widget
-        popup_menu=Menu(self.canvas,tearoff=0)
-        popup_menu.add_command(label="Controller Properties",command=self.controllerProperties)
+        popup_menu=Menu(self.canvas1,tearoff=0)
+        popup_menu.add_command(label="Controller Properties",command=self.ctrldetails)
         popup_menu.post(event.x_root,event.y_root)
 
     def popup_switch(self,event):
@@ -1134,12 +2215,12 @@ class Interface():
         for bouton in self.list_buttons.values():
             etat_bouton =str(bouton['state'])
             if etat_bouton == 'disabled':
-                popup_menu=Menu(self.canvas,tearoff=0)
+                popup_menu=Menu(self.canvas1,tearoff=0)
                 popup_menu.add_command(label="List Bridge",command=self.listBridge)
                 popup_menu.post(event.x_root,event.y_root)
                 return
-        popup_menu=Menu(self.canvas,tearoff=0)
-        popup_menu.add_command(label="Switch Properties",command=self.switchProperties)
+        popup_menu=Menu(self.canvas1,tearoff=0)
+        popup_menu.add_command(label="Switch Properties",command=self.switchdetails)
         popup_menu.post(event.x_root,event.y_root)
 
     def popup_legacyswitch(self,event):
@@ -1148,7 +2229,7 @@ class Interface():
         for bouton in self.list_buttons.values():
             etat_bouton =str(bouton['state'])
             if etat_bouton == 'disabled':
-                popup_menu=Menu(self.canvas,tearoff=0)
+                popup_menu=Menu(self.canvas1,tearoff=0)
                 popup_menu.add_command(label="List Bridge",command=self.listBridge)
                 popup_menu.post(event.x_root,event.y_root)
                 return
@@ -1159,7 +2240,7 @@ class Interface():
         for bouton in self.list_buttons.values():
             etat_bouton =str(bouton['state'])
             if etat_bouton == 'disabled':
-                popup_menu=Menu(self.canvas,tearoff=0)
+                popup_menu=Menu(self.canvas1,tearoff=0)
                 popup_menu.add_command(label="Terminal",command=self.xterm)
                 popup_menu.post(event.x_root,event.y_root)
                 return
@@ -1169,167 +2250,20 @@ class Interface():
             etat_bouton =str(bouton['state'])
             #print("etat bouton" + etat_bouton)
             if etat_bouton == 'disabled':
-                popup_menu=Menu(self.canvas,tearoff=0)
+                popup_menu=Menu(self.canvas1,tearoff=0)
                 popup_menu.add_command(label="Link down",command=self.linkDown)
                 popup_menu.add_command(label="Link Up",command=self.linkUp)
                 popup_menu.post(event.x_root,event.y_root)
                 return
-        popup_menu=Menu(self.canvas,tearoff=0)
-        popup_menu.add_command(label="Link Properties",command=self.linkProperties)
+        popup_menu=Menu(self.canvas1,tearoff=0)
+        popup_menu.add_command(label="Link Properties",command=self.linkdetails)
         popup_menu.post(event.x_root,event.y_root)
-
-    def chooseServerClient(self):
-        global listentree
-        listentree={}
-        list_protocol=['TCP','UDP']
-        global myprotocol
-        global var_protocol
-
-        var_protocol=StringVar()
-        var_protocol.set(list_protocol[0])
-
-        myprotocol=[list_protocol[0]]
-
-        global hostserver
-        hostserver=StringVar()
-
-        global listenode
-
-        global hostclient
-        hostclient=StringVar()
-
-        global liste
-        name_hosts=()
-        for host in self.name_host.keys():
-            name_hosts=name_hosts+(str(host),)
-
-        root=Toplevel()
-        root.geometry('500x500')
-        helv36 = Font(family='Helvetica', size=10, weight='bold')
-
-        # listserver = [name_hosts[0]]
-        # listclient = [name_hosts[0]]
-        liste=[name_hosts[0],name_hosts[0]]
-        listenode=[self.name_host[liste[0]],self.name_host[liste[0]]]
-        hostserver.set(name_hosts[0])
-        hostclient.set(name_hosts[0])
-        hostserver.trace("w",self.changehostserver)
-        hostclient.trace("w",self.changehostclient)
-
-        label1=Label(root,text='Choose nodes',font=helv36)
-        label1.place(x=10,y=10)
-
-        label3=Label(root,text='server',font=helv36)
-        label3.place(x=10,y=35)
-
-        dropDownMenu=OptionMenu(root,hostserver,*name_hosts)
-        dropDownMenu.place(x=90,y=35)
-
-        label5=Label(root,text="Time")
-        label5.place(x=10,y=65)
-        entry_100=Entry(root,width=10)
-        entry_100.place(x=75,y=65)
-        listentree['timeserver']=entry_100
-
-        label6 = Label(root,text="Port")
-        label6.place(x=10,y=95)
-        entry_101=Entry(root,width=10)
-        entry_101.place(x=75,y=95)
-        listentree['portserver']=entry_101
-
-        label7 = Label(root,text="Protocol")
-        label7.place(x=10,y=125)
-        var_protocol.trace("w",self.changeprotocolserver)
-        dropDownMenu3=OptionMenu(root,var_protocol,*list_protocol)
-        dropDownMenu3.place(x=75,y=125)
-
-        label95 = Label(root,text="fichier")
-        label95.place(x=10,y=155)
-        entry95=Entry(root,width=10)
-        entry95.place(x=75,y=155)
-        listentree['fichier']=entry95
-
-        label100=Label(root,text='client',font=helv36)
-        label100.place(x=250,y=35)
-        dropDownMenu2=OptionMenu(root,hostclient,*name_hosts)
-        dropDownMenu2.place(x=330,y=35)
-
-        # label102=Label(root,text='Port')
-        # label102.place(x=250,y=65)
-        # entry102=Entry(root,width=10)
-        # entry102.place(x=320,y=65)
-        # listentree['portclient']=entry102
-
-        # label103=Label(root,text='Protocol')
-        # label103.place(x=250,y=65)
-        # var_protocol1.trace("w",self.changeprotocolclient)
-        # dropDownMenu4=OptionMenu(root,var_protocol1,*list_protocol)
-        # dropDownMenu4.place(x=330,y=95)
-
-        label105 = Label(root,text='Bandwidth')
-        label105.place(x=250,y=95)
-        entry105=Entry(root,width=10)
-        entry105.place(x=330,y=95)
-        listentree['bandwidth']=entry105
-
-        label106 = Label(root,text='Transmission duration')
-        label106.place(x=200,y=125)
-        entry106=Entry(root,width=10)
-        entry106.place(x=380,y=125)
-        listentree['duration']=entry106
-
-        # label107 = Label(root,text='ServerIp')
-        # label107.place(x=250,y=155)
-        # entry107=Entry(root,width=10)
-        # entry107.place(x=350,y=155)
-        # listentree['serverip']=entry107
-
-        bouton1 = Button(root,text='OK',command=partial(self.ipeerf,listenode,myprotocol,listentree['bandwidth'],listentree['duration'],listentree['portserver'],listentree['timeserver'],listentree['fichier']))
-        bouton1.place(x=200,y=225)
-
-    # def setserver(self,server):
-        # if(myprotocol[0] == 'tcp'):
-        #     noeud=self.name_host[server[0]]
-        #     resultat = noeud.cmd('iperf -s -p %s -i %s' % (listentree['portserver'].get(),listentree['timeServer'].get()))
-
-    # def setclient(self,client):
-    #     if(myprotocol[0] == 'tcp'):
-    #         noeud=self.name_host[client[0]]
-    #         resultat = noeud.cmd('iperf -c %s -b %s -t %s -p %s' % (listentree['serverip'].get(),listentree['bandwidth'].get(),listentree['duration'].get(),listentree['portclient'].get()))
-    #         text1=Text(root,height=200,width=200)
-    #         text1.config(state="normal")
-    #         text1.insert(INSERT,resultat)
-    #         text1.config(state='disabled')
-    #         text1.pack()
-
-    def changeprotocolserver(self,*args):
-        myprotocol[0]=var_protocol.get()
-        print('myprotocol')
-        print(myprotocol)
-
-    # def changeprotocolclient(self,*args):
-    #     myprotocol1=[var_protocol1.get()]
-    #     print('myprotocol1')
-    #     print(myprotocol1)
-
-    def changehostserver(self,*args):
-        liste[1]=hostserver.get()
-        listenode[1]=self.name_host[hostserver.get()]
-        print('listenode')
-        print(listenode)
-        print('\n')
-
-    def changehostclient(self,*args):
-        liste[0]=hostclient.get()
-        listenode[0]=self.name_host[hostclient.get()]
-        print('listenode')
-        print(liste)
 
     def listBridge( self, _ignore=None ):
         selectedNode=self.selectedNode  #widget
         itemNode=self.widgetToItem[selectedNode]
         name=self.itemToName[itemNode]
-        tags = self.canvas.gettags(itemNode)
+        tags = self.canvas1.gettags(itemNode)
 
         if name not in self.net.nameToNode:
             return
@@ -1340,713 +2274,6 @@ class Interface():
     def ovsShow(_ignore=None):
         call(["xterm -T 'OVS Summary' -sb -sl 2000 -e 'ovs-vsctl show; read -p \"Press Enter to close\"' &"],shell=True)
 
-    def changeCPU(self,*args):
-        hostEntries['sched']=varCPU.get()
-
-    def addVLANInterface(self):
-        listbox3.insert(END,content_vlan.get())
-        listbox4.insert(END,content_vlan1.get())
-        vlanEntries.append((content_vlan.get(),content_vlan1.get()))
-
-    def addExternalInterface(self):
-        listbox5.insert(END,content_external.get())
-        externalEntries.append(content_external.get())
-
-    def addDirectory(self):
-        listbox10.insert(END,content_directory.get())
-        listbox11.insert(END,content_directory1.get())
-        directoryEntries.append((content_directory.get(),content_directory1.get()))
-
-    def hostProperties(self):
-        Options=['host','cfs','rt']
-        global hostEntries
-        hostEntries={}
-        hostEntries['sched']=""
-        global namehost
-        namehost=StringVar()
-        global varCPU
-        varCPU=StringVar()
-        global content_vlan
-        content_vlan=StringVar()
-        global content_vlan1
-        content_vlan1=StringVar()
-        global serv
-        serv = IntVar()
-        global listbox3
-        global listbox4
-        global listbox5
-        global content_external
-        global content_directory
-        global content_directory1
-        content_directory=StringVar()
-        content_directory1=StringVar()
-        global listbox10
-        global listbox11
-        content_external=StringVar()
-        global vlanEntries
-        vlanEntries=[]
-        global externalEntries
-        externalEntries=[]
-        global directoryEntries
-        directoryEntries=[]
-        global clien
-        clien=IntVar()
-        fen = Toplevel()
-        fen.geometry('500x500')
-        nb = ttk.Notebook(fen)
-        frame1=ttk.Frame(nb)
-        frame2=ttk.Frame(nb)
-        frame5=ttk.Frame(nb)
-        frame6=ttk.Frame(nb)
-        nb.add(frame1,text="Properties")
-        nb.add(frame2,text="VLAN Interfaces")
-        nb.add(frame5,text="External Interfaces")
-        nb.add(frame6,text="Private Directories")
-        nb.pack(fill="both",expand="yes")
-
-        #hostname
-        label_1=Label(frame1,text="Hostname :",width=20,font=("bold",10))
-        label_1.place(x=1,y=20)
-
-        namehost.set(self.hostOptions[self.selectedNode]['hostname'])
-        entry_1=Entry(frame1,textvariable=namehost)
-        entry_1.place(x=150,y=20)
-        hostEntries['hostname']=entry_1
-
-        #ipAddress
-        label_2=Label(frame1,text="IP Address :",width=20,font=("bold",10))
-        label_2.place(x=1,y=50)
-        entry_2=Entry(frame1)
-        entry_2.place(x=150,y=50)
-        hostEntries['ipAddress']=entry_2
-
-        #DefaultRoute
-        label_3=Label(frame1,text="Default Route :",width=20,font=("bold",10))
-        label_3.place(x=1,y=80)
-        entry_3=Entry(frame1)
-        entry_3.place(x=150,y=80)
-        hostEntries['defaultRoute']=entry_3
-
-        #CPU
-        label_4=Label(frame1,text="Amount CPU :",width=20,font=("bold",10))
-        label_4.place(x=1,y=110)
-        varCPU.set(Options[0])
-        varCPU.trace("w",self.changeCPU)
-        dropDownMenu=OptionMenu(frame1,varCPU,Options[0],Options[1],Options[2])
-        dropDownMenu.place(x=350,y=110)
-        entry_4=Entry(frame1)
-        entry_4.place(x=150,y=110)
-        hostEntries['cpu']=entry_4
-
-        #Cores
-        label_5=Label(frame1,text="Cores :",width=20,font=("bold",10))
-        label_5.place(x=1,y=140)
-        entry_5=Entry(frame1)
-        entry_5.place(x=150,y=140)
-        hostEntries['cores']=entry_5
-
-        #Start Command
-        label_6=Label(frame1,text="Start Command :",width=20,font=("bold",10))
-        label_6.place(x=1,y=170)
-        entry_6=Entry(frame1)
-        entry_6.place(x=150,y=170)
-        hostEntries['start']=entry_6
-
-        #Stop Command
-        label_7=Label(frame1,text="Stop Command :",width=20,font=("bold",10))
-        label_7.place(x=1,y=200)
-        entry_7=Entry(frame1)
-        entry_7.place(x=150,y=200)
-        hostEntries['stop']=entry_7
-
-        bouton1=Button(frame1,text="OK",width=8,height=2,command=self.logInformationsHost)
-        bouton1.place(x=1,y=400)
-
-        bouton2=Button(frame1,text="Cancel",width=8,height=2,command=lambda : fen.destroy())
-        bouton2.place(x=100,y=400)
-
-        #serveur ou pas serveur
-        # label_100 = Label(frame1,text='Serveur iperf',width=20,font=('bold',10))
-        # label_100.place(x=5,y=320)
-        # bouton_serveur=Checkbutton(frame1,variable=serv,offvalue=0,onvalue=1)
-        # bouton_serveur.select()
-        # bouton_serveur.bind('<Button-1>',self.changeStatusServeur)
-        # bouton_serveur.place(x=140,y=320)
-
-        #client ou pas client
-        # label_101=Label(frame1,text='Client Iperf',width=20,font=('bold',10))
-        # label_101.place(x=200,y=320)
-        # bouton_client =Checkbutton(frame1,variable=clien,offvalue=0,onvalue=1)
-        # bouton_client.select()
-        # bouton_client.bind('<Button-1>',self.changeStatusClient)
-        # bouton_client.place(x=340,y=320)
-        #
-        # print('clien'+str(clien.get()))
-        # print('serv'+str(serv.get()))
-
-        #Frame 2 VLAN INTERFACE
-        label_8=Label(frame2,text="VLAN Interface:",width=20,font=("bold",10))
-        label_8.place(x=50,y=10)
-        bouton3=Button(frame2,text='Add',command= self.addVLANInterface,width=5,height=1)
-        bouton3.place(x=200,y=10)
-
-        frame=Frame(frame2,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=400,height=300,bd=0)
-        frame.place(x=50,y=50)
-        frame3 = Frame(frame, highlightbackground="black", highlightcolor="black", highlightthickness=1, width=200, height=20, bd= 0)
-        frame3.place(x=20,y=10)
-
-        label_9=Label(frame3,text="IP Address",width=20)
-        label_9.pack()
-        entry_9=Entry(frame3,textvariable=content_vlan)
-        entry_9.pack()
-
-        frame4 = Frame(frame, highlightbackground="black", highlightcolor="black", highlightthickness=1, width=200, height=20, bd= 0)
-        frame4.place(x=180,y=10)
-        label_10=Label(frame4,text="VLAN ID",width=20)
-        label_10.pack()
-        entry_10=Entry(frame4,textvariable=content_vlan1)
-        entry_10.pack()
-
-        scroll= Scrollbar(frame3)
-        scroll.pack(side=RIGHT,fill=Y)
-        listbox3=Listbox(frame3,yscrollcommand=scroll.set)
-        listbox3.pack()
-        scroll.config(command=listbox3.yview)
-
-        scroll= Scrollbar(frame4)
-        scroll.pack(side=RIGHT,fill=Y)
-        listbox4=Listbox(frame4,yscrollcommand=scroll.set)
-        listbox4.pack()
-        scroll.config(command=listbox4.yview)
-
-        #Frame5  External Interfaces
-
-        label12=Label(frame5,text="External Interface :")
-        label12.place(x=1,y=10)
-        bouton12=Button(frame5,text='Add',command=self.addExternalInterface)
-        bouton12.place(x=130,y=5)
-        frame12=Frame(frame5,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=250,height=300,bd=0)
-        frame12.place(x=1,y=50)
-        frame13=Frame(frame12,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=200,height=20,bd=0)
-        frame13.place(x=1,y=10)
-        label13=Label(frame13,text="Interface Name")
-        label13.pack()
-        entry13=Entry(frame13,textvariable=content_external)
-        entry13.pack()
-        frame14=Frame(frame12,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=200,height=300,bd=0)
-        frame14.place(x=1,y=80)
-
-        scroll= Scrollbar(frame14)
-        scroll.pack(side=RIGHT,fill=Y)
-        listbox5=Listbox(frame14,yscrollcommand=scroll.set)
-        listbox5.pack()
-        scroll.config(command=listbox5.yview)
-
-        bouton11=Button(frame2,text="OK",width=10,height=2)
-        bouton11.place(x=150,y=380)
-        bouton12=Button(frame2,text="Cancel",command=lambda:fen.destroy(),width=10,height=2)
-        bouton12.place(x=260,y=380)
-
-        bouton13=Button(frame5,text="OK",width=10,height=2)
-        bouton13.place(x=10,y=380)
-        bouton14=Button(frame5,text="Cancel",command=lambda:fen.destroy(),width=10,height=2)
-        bouton14.place(x=120,y=380)
-
-        bouton15=Button(frame6,text="OK",width=10,height=2)
-        bouton15.place(x=150,y=380)
-        bouton16=Button(frame6,text="Cancel",command=lambda:fen.destroy(),width=10,height=2)
-        bouton16.place(x=260,y=380)
-
-        #frame 6 PRIVATE DIRECTORIES
-        label_16=Label(frame6,text="Private Directory:",width=20,font=("bold",10))
-        label_16.place(x=50,y=10)
-        bouton11=Button(frame6,text='Add',command= self.addDirectory,width=5,height=1)
-        bouton11.place(x=200,y=10)
-
-        frame7=Frame(frame6,highlightbackground="black", highlightcolor="black",highlightthickness=1,width=400,height=300,bd=0)
-        frame7.place(x=50,y=50)
-        frame8 = Frame(frame7, highlightbackground="black", highlightcolor="black", highlightthickness=1, width=200, height=20, bd= 0)
-        frame8.place(x=20,y=10)
-
-        label_17=Label(frame8,text="Mount",width=20)
-        label_17.pack()
-        entry_20=Entry(frame8,textvariable=content_directory)
-        entry_20.pack()
-
-        frame9 = Frame(frame7, highlightbackground="black", highlightcolor="black", highlightthickness=1, width=200, height=20, bd= 0)
-        frame9.place(x=180,y=10)
-        label_10=Label(frame9,text="Persistent Directory",width=20)
-        label_10.pack()
-        entry_21=Entry(frame9,textvariable=content_directory1)
-        entry_21.pack()
-
-        scroll= Scrollbar(frame8)
-        scroll.pack(side=RIGHT,fill=Y)
-        listbox10=Listbox(frame8,yscrollcommand=scroll.set)
-        listbox10.pack()
-        scroll.config(command=listbox10.yview)
-
-        scroll= Scrollbar(frame9)
-        scroll.pack(side=RIGHT,fill=Y)
-        listbox11=Listbox(frame9,yscrollcommand=scroll.set)
-        listbox11.pack()
-        scroll.config(command=listbox11.yview)
-
-    # def changeStatusServeur(self,*args):
-    #     print('valeur serveur'+str(serv.get()))
-    #     print('\n')
-    #
-    #
-    # def changeStatusClient(self,*args):
-    #     print('valeur client'+str(clien.get()))
-    #     print('\n')
-
-    def logInformationsHost(self):
-        setLogLevel( 'info' )
-        newhostoptions={}
-        newhostoptions['nodeNum']=self.hostOptions[self.selectedNode]['numhost']
-        newhostoptions['hostname']=hostEntries['hostname'].get()
-        newhostoptions['ip']=hostEntries['ipAddress'].get()
-        newhostoptions['defaultRoute']=hostEntries['defaultRoute'].get()
-        newhostoptions['cores']=hostEntries['cores'].get()
-        newhostoptions['startCommand']=hostEntries['start'].get()
-        newhostoptions['stopCommand']=hostEntries['stop'].get()
-        newhostoptions['sched']=hostEntries['sched']
-        newhostoptions['cpu']=hostEntries['cpu'].get()
-        newhostoptions['externalInterfaces']=externalEntries
-        newhostoptions['privateDirectory']=directoryEntries
-        newhostoptions['vlanInterfaces']=vlanEntries
-        newhostoptions['serveur']=serv.get()
-        newhostoptions['client']=clien.get()
-        self.hostOptions[self.selectedNode]['options']=newhostoptions
-        info('New host details for ' + newhostoptions['hostname'] + '=' + str(newhostoptions) + '\n')
-
-    def logInformationsController(self):
-        setLogLevel('info')
-        newcontrolleroptions={}
-        newcontrolleroptions['hostname']=self.controllerOptions[self.selectedNode]['hostname']
-        newcontrolleroptions['remotePort']=listProperties['remotePort'].get()
-        newcontrolleroptions['remoteIP']=listProperties['remoteIP'].get()
-        newcontrolleroptions['controllerType']=listProperties['controllerType']
-        newcontrolleroptions['controllerProtocol']=listProperties['controllerProtocol']
-        self.controllerOptions[self.selectedNode]['options']=newcontrolleroptions
-        info('New controller details for' + newcontrolleroptions['hostname'] + '=' + str(newcontrolleroptions) + '\n')
-
-    def changeControllerType(self,*args):
-        listProperties['controllerType']=var25.get()
-
-    def changeProtocol(self,*args):
-        listProperties['controllerProtocol']=var26.get()
-
-    def controllerProperties(self):
-        root=Toplevel()
-        root.geometry('300x320')
-        global listProperties
-        listProperties={}
-        global var26
-        var26=StringVar()
-        global var25
-        var25=StringVar()
-        global name_controller
-        name_controller=StringVar()
-        global controller_port
-        controller_port=StringVar()
-        global controller_address
-        controller_address=StringVar()
-        Options=['OpenFlow Reference','Remote Controller','In-Band Controller','OVS Controller']
-        optionsProtocol=['tcp','ssl']
-        listProperties['controllerProtocol']=optionsProtocol[0]
-        listProperties['controllerType']=Options[0]
-
-        label1=Label(root,text='Name:')
-        label1.place(x=1,y=10)
-        name_controller.set(self.controllerOptions[self.selectedNode]['hostname'])
-        entry20=Entry(root,textvariable=name_controller)
-        entry20.place(x=120,y=10)
-        listProperties['hostname']=entry20
-
-        label2=Label(root,text='Controller Port:')
-        label2.place(x=1,y=40)
-        controller_port.set("6633")
-        entry21=Entry(root,textvariable=controller_port)
-        entry21.place(x=120,y=40)
-        listProperties['remotePort']=entry21
-
-        label3=Label(root,text='Controller Type:')
-        label3.place(x=1,y=70)
-        var25.set(Options[0])
-        var25.trace("w",self.changeControllerType)
-        dropDownMenu=OptionMenu(root,var25,Options[0],Options[1],Options[2],Options[3])
-        dropDownMenu.place(x=120,y=70)
-
-        label4=Label(root,text='Protocol:')
-        label4.place(x=1,y=100)
-        var26.set(optionsProtocol[0])
-        var26.trace("w",self.changeProtocol)
-        dropDownMenu1=OptionMenu(root,var26,optionsProtocol[0],optionsProtocol[1])
-        dropDownMenu1.place(x=120,y=110)
-
-        frame5=LabelFrame(root,text="Remote/In-Band Controller",width=280,height=60)
-        frame5.place(x=10,y=150)
-        label5=Label(frame5,text="IP Address:")
-        label5.place(x=1,y=10)
-        controller_address.set("127.0.0.1")
-        entry22=Entry(frame5,textvariable=controller_address)
-        entry22.place(x=90,y=10)
-        listProperties['remoteIP']=entry22
-
-        bouton1=Button(root,text='OK',width=5,height=1,command=self.logInformationsController)
-        bouton1.place(x=50,y=230)
-        bouton2=Button(root,text='Cancel',width=5,height=1,command=lambda:root.destroy())
-        bouton2.place(x=150,y=230)
-
-    def linkProperties(self):
-        global linkEntries
-        linkEntries={}
-        root = Toplevel()
-        root.geometry("350x250")
-
-        #Bandwidth
-        label_1=Label(root,text='Bandwidth:',width=15,font=("bold",10))
-        label_1.place(x=0,y=10)
-        entry_1=Entry(root)
-        entry_1.place(x=125,y=10)
-        linkEntries['bw']=entry_1
-        label_7=Label(root,text='Mbit')
-        label_7.place(x=290,y=10)
-
-        #Delay
-        label_2=Label(root,text='Delay:',width=15,font=("bold",10))
-        label_2.place(x=0,y=40)
-        entry_2=Entry(root)
-        entry_2.place(x=125,y=40)
-        linkEntries['delay']=entry_2
-
-        #Loss
-        label_3=Label(root,text='Loss:',width=15,font=("bold",10))
-        label_3.place(x=0,y=70)
-        entry_3=Entry(root)
-        entry_3.place(x=125,y=70)
-        label_8=Label(root,text='%')
-        label_8.place(x=290,y=70)
-        linkEntries['loss']=entry_3
-
-        #Max Queue Size
-        label_4=Label(root,text='Max Queue size:',width=15,font=("bold",10))
-        label_4.place(x=0,y=100)
-        entry_4=Entry(root)
-        entry_4.place(x=125,y=100)
-        linkEntries['max_queue_size']=entry_4
-
-        #Jitter
-        label_5=Label(root,text='Jitter:',width=15,font=("bold",10))
-        label_5.place(x=0,y=130)
-        entry_5=Entry(root)
-        entry_5.place(x=125,y=130)
-        linkEntries['jitter']=entry_5
-
-        #Speedup
-        label_6=Label(root,text='Speedup:',width=15,font=("bold",10))
-        label_6.place(x=0,y=160)
-        entry_6=Entry(root)
-        entry_6.place(x=125,y=160)
-        linkEntries['speedup']=entry_6
-
-        bouton1=Button(root,text='OK',width=10,command=self.logInformationsLink)
-        bouton1.place(x=80,y=200)
-        bouton2=Button(root,text='Cancel',width=10,command = lambda:root.destroy())
-        bouton2.place(x=210,y=200)
-
-    def logInformationsLink(self):
-        setLogLevel( 'info' )
-        newLinkOptions={}
-        self.links[self.selectedLink]['options']={}
-        if(linkEntries['bw'].get() != ''):
-            try:
-                float(linkEntries['bw'].get())
-                newLinkOptions['bw']=float(linkEntries['bw'].get())
-                self.links[self.selectedLink]['options']['bw']=float(linkEntries['bw'].get())
-            except ValueError:
-                root=Toplevel()
-                text1=Text(root,height=200,width=200)
-                text1.config(state="normal")
-                text1.insert(INSERT,'Bandwidth should be a float')
-                text1.config(state='disabled')
-                text1.pack()
-
-        if(linkEntries['delay'].get() != ''):
-            try:
-                float(linkEntries['delay'].get())
-                newLinkOptions['delay']=float(linkEntries['delay'].get())
-                self.links[self.selectedLink]['options']['delay']=float(linkEntries['delay'].get())
-            except ValueError:
-                root=Toplevel()
-                text1=Text(root,height=200,width=200)
-                text1.config(state="normal")
-                text1.insert(INSERT,'Delay should be a float')
-                text1.config(state='disabled')
-                text1.pack()
-
-        if(linkEntries['loss'].get() != ''):
-            try:
-                float(linkEntries['loss'].get())
-                newLinkOptions['loss']=float(linkEntries['loss'].get())
-                self.links[self.selectedLink]['options']['loss']=float(linkEntries['loss'].get())
-            except ValueError:
-                root=Toplevel()
-                text1=Text(root,height=200,width=200)
-                text1.config(state="normal")
-                text1.insert(INSERT,'Loss should be a float')
-                text1.config(state='disabled')
-                text1.pack()
-
-        if(linkEntries['max_queue_size'].get() != ''):
-            try:
-                float(linkEntries['max_queue_size'].get())
-                newLinkOptions['max_queue_size']=float(linkEntries['max_queue_size'].get())
-                self.links[self.selectedLink]['options']['max_queue_size']=float(linkEntries['max_queue_size'].get())
-            except ValueError:
-                root=Toplevel()
-                text1=Text(root,height=200,width=200)
-                text1.config(state="normal")
-                text1.insert(INSERT,'Max queue size should be a float')
-                text1.config(state='disabled')
-                text1.pack()
-
-        if(linkEntries['jitter'].get() != ''):
-            try:
-                float(linkEntries['jitter'].get())
-                newLinkOptions['jitter']=float(linkEntries['jitter'].get())
-                self.links[self.selectedLink]['options']['jitter']=float(linkEntries['jitter'].get())
-            except ValueError:
-                root=Toplevel()
-                text1=Text(root,height=200,width=200)
-                text1.config(state="normal")
-                text1.insert(INSERT,'Jitter should be a float')
-                text1.config(state='disabled')
-                text1.pack()
-
-        #newLinkOptions['jitter']=linkEntries['jitter'].get()
-        if(linkEntries['speedup'].get() != ''):
-            try:
-                float(linkEntries['speedup'].get())
-                newLinkOptions['speedup']=float(linkEntries['speedup'].get())
-                self.links[self.selectedLink]['options']['speedup']=float(linkEntries['speedup'].get())
-            except ValueError:
-                root=TopLevel()
-                text1=Text(root,height=200,width=200)
-                text1.config(state="normal")
-                text1.insert(INSERT,'Speedup should be a float')
-                text1.config(state='disabled')
-                text1.pack()
-        info('New link details for ' + '=' + str(self.links[self.selectedLink]['options']) + '\n')
-
-    def change(self,*args):
-        print("enableNetFlow"+str(var_2.get())+'\n')
-
-    def change1(self,*args):
-        print("enablesFlow"+str(var_3.get())+'\n')
-
-    def change3(self,*args):
-        listVariable['switchType']=var.get()
-        #print("ListVariable['switchtype']="+str(listVariable['switchType']))
-
-
-    def addListbox(self):
-        listbox.insert(END,content.get())
-        listEntries.append(content.get())
-        #print("listEntries_addlistbox:"+str(listEntries))
-
-    def switchProperties(self):
-        global listEntries # contient external Interfaces
-        listEntries=[]
-        global listVariable
-        listVariable={}
-        global content
-        content=StringVar()
-        global listbox
-        global var_2
-        var_2=IntVar()
-        global var_3
-        var_3=IntVar()
-        global var
-        var=StringVar()
-        Options=["Default","Open VSwitch Kernel Mode","Indigo Virtual Switch","Userspace Switch","Userspace Switch inNamespace"]
-        fen = Toplevel()
-        fen.geometry('500x500')
-
-        #Switch Name
-        label_1=Label(fen,text="Hostname :",width=20,font=("bold",10))
-        label_1.place(x=0,y=10)
-        var_1=StringVar()
-        var_1.set(str(self.switchOptions[self.selectedNode]['nameSwitch']))
-        entry_1=Entry(fen,textvariable=var_1)
-        entry_1.place(x=130,y=10)
-        listVariable['nameSwitch']=str(self.switchOptions[self.selectedNode]['nameSwitch'])
-
-        #Switch number
-        var1=self.switchOptions[self.selectedNode]['numSwitch']
-        listVariable['numSwitch']=str(self.switchOptions[self.selectedNode]['numSwitch'])
-
-        #External Interfaces
-        label_9=Label(fen,text="External Interface :",width=20,font=("bold",10))
-        label_9.place(x=290,y=10)
-        bouton5=Button(fen,text="Add",command=self.addListbox)
-        bouton5.place(x=440,y=8)
-        label_10=Label(fen,text="External Interfaces")
-        label_10.place(x=330,y=50)
-        frame=Frame(fen, width=170, height=320) #background
-        frame.place(x=320,y=80)
-        entry_11=Entry(frame,textvariable=content)
-        entry_11.pack()
-        scroll= Scrollbar(frame)
-        scroll.pack(side=RIGHT,fill=Y)
-        listbox=Listbox(frame,yscrollcommand=scroll.set)
-        listbox.pack()
-        scroll.config(command=listbox.yview)
-
-        #DPID
-        label_2=Label(fen,text="DPID :",width=20,font=("bold",10))
-        label_2.place(x=0,y=40)
-        entry_2=Entry(fen)
-        entry_2.place(x=110,y=40)
-        listVariable["dpid"]=entry_2
-
-        #EnableNetFlow
-        label_2=Label(fen,text="Enable NetFlow :",width=20,font=("bold",10))
-        label_2.place(x=0,y=70)
-        bouton2=Checkbutton(fen,variable=var_2)
-        bouton2.bind('<Button-1>',self.change)
-        bouton2.place(x=130,y=70)
-
-        #EnablesFlow
-        label_3=Label(fen,text="Enable sFlow :",width=20,font=("bold",10))
-        label_3.place(x=0,y=100)
-        bouton3=Checkbutton(fen,variable=var_3)
-        bouton3.bind('<Button-1>',self.change1)
-        bouton3.place(x=130,y=100)
-
-        #Switch Type
-        label_4=Label(fen,text="Switch Type",width=20,font=("bold",10))
-        label_4.place(x=0,y=130)
-        var.set(Options[0])
-        var.trace("w",self.change3)
-        dropDownMenu=OptionMenu(fen,var,Options[0],Options[1],Options[2],Options[3],Options[4])
-        dropDownMenu.place(x=130,y=130)
-
-        #Controllers
-        listVariable["controllers"]=self.switchOptions[self.selectedNode]['options']['controllers'] #controllers
-
-        #IP address
-        label_5=Label(fen,text="IP Address :",width=20,font=("bold",10))
-        label_5.place(x=0,y=160)
-        entry_3=Entry(fen)
-        entry_3.place(x=130,y=160)
-        listVariable["ipAddress"]=entry_3
-
-        label_6=Label(fen,text="DPCTL port :",width=20,font=("bold",10))
-        label_6.place(x=0,y=190)
-        entry_4=Entry(fen)
-        entry_4.place(x=130,y=190)
-        listVariable['dpctlPort']=entry_4
-
-        label_7=Label(fen,text="Start Command :",width=20,font=("bold",10))
-        label_7.place(x=0,y=320)
-        entry_5=Entry(fen)
-        entry_5.place(x=140,y=320,width=350)
-        listVariable['start']=entry_5
-
-        label_8=Label(fen,text="Stop Command :",width=20,font=("bold",10))
-        label_8.place(x=0,y=350)
-        entry_6=Entry(fen)
-        entry_6.place(x=140,y=350,width=350)
-        listVariable['stop']=entry_6
-
-        bouton10=Button(fen,text='OK',width=10,command=self.logInformationsSwitch)
-        bouton10.place(x=200,y=420)
-        bouton11=Button(fen,text='Cancel',width=10,command=lambda : fen.destroy())
-        bouton11.place(x=350,y=420)
-
-    def logInformationsSwitch(self):
-        #c'est ici que toutes les modifications doivent etre faites
-        setLogLevel('info')
-        newSwitchOptions={}
-        newSwitchOptions['hostname']=listVariable['nameSwitch']
-        newSwitchOptions['number']=listVariable['numSwitch']
-        newSwitchOptions['switchIP']=listVariable['ipAddress'].get()
-        newSwitchOptions['dpctl']=listVariable['dpctlPort'].get()
-        newSwitchOptions['dpid']=listVariable['dpid'].get()
-        newSwitchOptions['switchType']=var.get()
-        newSwitchOptions['sflow']=var_3.get()
-        newSwitchOptions['netflow']=var_2.get()
-        newSwitchOptions['controllers']=listVariable['controllers']
-        newSwitchOptions['externalInterfaces']= listEntries
-        newSwitchOptions['startCommand']=listVariable['start'].get()
-        newSwitchOptions['stopCommand']=listVariable['stop'].get()
-        self.switchOptions[self.selectedNode]['options']=newSwitchOptions
-        info('New switch details for ' + str(newSwitchOptions['hostname']) + '=' + str(newSwitchOptions) + '\n')
-
-    def changehost(self,*args):
-        hostnames1['host0']=varhost.get()
-        hostnodes1[0]=self.name_host[hostnames1['host0']]
-
-    def changehost1(self,*args):
-        hostnames1['host1']=varhost1.get()
-        hostnodes1[1]=self.name_host[hostnames1['host1']]
-
-    def changeNumber(self,*args):
-        choosenNumber[0]=varnumber.get()
-
-    def pingpacket(self):
-        root=Toplevel()
-        global choosenNumber
-        choosenNumber=[1]
-        numbers=[1]
-        for i in range(2,21):
-            numbers.append(i)
-
-        global hostnodes1
-        global hostnames1
-        hostnames1={}
-
-        global varnumber
-        varnumber=StringVar()
-
-        global varhost
-        varhost=StringVar()
-
-        global varhost1
-        varhost1=StringVar()
-
-        #le nom de tous les hotes
-        name_hosts=[]
-        for host in self.name_host.keys():
-            name_hosts.append(host)
-
-        hostnames1['host0']=name_hosts[0]
-        hostnames1['host1']=name_hosts[0]
-
-        hostnodes1=[self.name_host[hostnames1['host0']],self.name_host[hostnames1['host1']]]
-        varhost.trace("w",self.changehost)
-        varhost1.trace("w",self.changehost1)
-        varnumber.trace("w",self.changeNumber)
-        varhost.set(hostnames1['host0'])
-        varhost1.set(hostnames1['host1'])
-        varnumber.set('1')
-        dropDownMenu=OptionMenu(root,varhost,*name_hosts)
-        dropDownMenu.place(x=0,y=50)
-
-        dropDownMenu1=OptionMenu(root,varhost1,*name_hosts)
-        dropDownMenu1.place(x=60,y=50)
-
-        dropDownMenu2=OptionMenu(root,varnumber,*numbers)
-        dropDownMenu2.place(x=120,y=50)
-
-        bouton=Button(root,text='OK',command=partial(self.pingpacket1,hostnames1,choosenNumber))
-        bouton.place(x=180,y=50)
-
-    def changeNode(self,*args):
-        node[0]=varname.get()
 
     def node_info(self):
         global node
@@ -2258,214 +2485,25 @@ class Interface():
                 text1.pack()
                 return
 
-    def logInformationsPreferences(self):
-        setLogLevel('info')
-        newPrefOptions={}
-        newPrefOptions['dpctl']=variables['dpctl'].get()
-        newPrefOptions['sflow']={}
-        newPrefOptions['sflow']['sflowPolling']=variables['sFlowPolling'].get()
-        newPrefOptions['sflow']['sflowHeader']=variables['sFlowHeader'].get()
-        newPrefOptions['sflow']['sflowTarget']=variables['sFlowTarget'].get()
-        newPrefOptions['sflow']['sflowSampling']=variables['sFlowSampling'].get()
-        newPrefOptions['openFlowVersions']={}
-        newPrefOptions['openFlowVersions']['ovsOf10']=ovsOf10.get()
-        newPrefOptions['openFlowVersions']['ovsOf11']=ovsOf11.get()
-        newPrefOptions['openFlowVersions']['ovsOf12']=ovsOf12.get()
-        newPrefOptions['openFlowVersions']['ovsOf13']=ovsOf13.get()
-        newPrefOptions['ipBase']=variables['ipBase'].get()
-        newPrefOptions['terminalType']=variables['terminalType'].get()
-        newPrefOptions['switchType']=variables['switchType'].get()
-        newPrefOptions['netflow']={}
-        newPrefOptions['netflow']['nflowTarget']=variables['nFlowTarget'].get()
-        newPrefOptions['netflow']['nflowTimeout']=variables['nFlowTimeout'].get()
-        newPrefOptions['netflow']['nflowAddId']=nFlowAddId.get()
-        newPrefOptions['startCLI']=varStartCLI.get()
-        #print("varStartCLI"+str(newPrefOptions['startCLI']))
-        self.preferences=newPrefOptions
-        #print("we are in log Informations preferences")
-        #print(self.preferences)
-        info('New Prefs ' + '=' + str(newPrefOptions) + '\n')
-
-    def changeTerminalType(self,*args):
-        variables['terminalType']=varTerminalType
-
-    def changeSwitchType(self,*args):
-        variables['switchType']=varSwitchType
-
-    def setPreferences(self):
-        optionsTerminal=['xterm','gterm']
-        optionsSwitch=["Open vSwitch Kernel Mode","Indigo Virtual Switch","Userspace Switch","Userspace Switch inNamespace"]
-        global varTerminalType
-        varTerminalType=StringVar()
-        global varStartCLI
-        varStartCLI=IntVar()
-        global varSwitchType
-        varSwitchType=StringVar()
-        global variables
-        variables={}
-        global ovsOf10
-        ovsOf10=IntVar()
-        ovsOf10.set(1)
-        global ovsOf11
-        ovsOf11=IntVar()
-        global ovsOf12
-        ovsOf12=IntVar()
-        global ovsOf13
-        ovsOf13=IntVar()
-        global nFlowAddId
-        nFlowAddId=IntVar()
-        root=Toplevel()
-        root.geometry("770x390")
-        root.title("Preferences")
-
-        #IP base
-        label_1=Label(root,text="IP base :",width=10,font=("bold",10))
-        label_1.place(x=0,y=10)
-        var_1=StringVar()
-        var_1.set("10.0.0.0/8")
-        entry_1=Entry(root,textvariable=var_1)
-        entry_1.place(x=150,y=10)
-        variables['ipBase']=entry_1
-
-        #terminalType Type A revoir
-        label_2=Label(root,text="Default Terminal:",width=17,font=("bold",10))
-        label_2.place(x=0,y=40)
-        varTerminalType.set(optionsTerminal[0])
-        variables['terminalType']=varTerminalType
-        varTerminalType.trace("w",self.changeTerminalType)
-        dropDownMenu=OptionMenu(root,varTerminalType,optionsTerminal[0],optionsTerminal[1])
-        dropDownMenu.place(x=150,y=40)
-
-        #CLI
-        label_3=Label(root,text="Start CLI :",width=10,font=("bold",10))
-        label_3.place(x=0,y=70)
-        bouton2=Checkbutton(root,variable=varStartCLI)
-        bouton2.place(x=150,y=70)
-
-        #SwitchType
-        label_4=Label(root,text="Default Switch :",width=15,font=("bold",10))
-        label_4.place(x=0,y=100)
-        varSwitchType.set(optionsSwitch[0])
-        variables['switchType']=varSwitchType
-        varSwitchType.trace("w",self.changeSwitchType)
-        dropDownMenu1=OptionMenu(root,varSwitchType,optionsSwitch[0],optionsSwitch[1],optionsSwitch[2],optionsSwitch[3])
-        dropDownMenu1.place(x=150,y=100)
-
-        #OpenVSwitch
-        frame1=LabelFrame(root,width=350, height=150, text="Open vSwitch")
-        frame1.place(x=10,y=130)
-
-        #OpenFlow 1.0
-        label_5=Label(frame1,text="OpenFlow 1.0:")
-        label_5.place(x=0,y=10)
-        bouton3=Checkbutton(frame1,variable=ovsOf10)
-        bouton3.place(x=100,y=10)
-
-        #OpenFlow 1.1
-        label_6=Label(frame1,text="OpenFlow 1.1:")
-        label_6.place(x=0,y=40)
-        bouton4=Checkbutton(frame1,variable=ovsOf11)
-        bouton4.place(x=100,y=40)
-
-        #OpenFlow 1.2
-        label_7=Label(frame1,text="OpenFlow 1.2:")
-        label_7.place(x=0,y=70)
-        bouton5=Checkbutton(frame1,variable=ovsOf12)
-        bouton5.place(x=100,y=70)
-
-        #OpenFlow 1.3
-        label_8=Label(frame1,text="OpenFlow 1.3:")
-        label_8.place(x=0,y=100)
-        bouton6=Checkbutton(frame1,variable=ovsOf13)
-        bouton6.place(x=100,y=100)
-
-        #dpctl port
-        label_9=Label(root,text='dpctl port:')
-        label_9.place(x=40,y=290)
-        entry_2=Entry(root)
-        entry_2.place(x=160,y=290)
-        variables['dpctl']=entry_2
-
-        frame2=LabelFrame(root,width=350, height=150, text="sFlow Profile for Open vSwitch")
-        frame2.place(x=400,y=10)
-
-        #Target
-        label_10=Label(frame2,text='Target:')
-        label_10.place(x=0,y=10)
-        entry_3=Entry(frame2)
-        entry_3.place(x=60,y=10)
-        variables['sFlowTarget']=entry_3
-
-        #Sampling
-        label_11=Label(frame2,text='Sampling:')
-        label_11.place(x=0,y=40)
-        var_7=StringVar()
-        var_7.set("400")
-        entry_4=Entry(frame2,textvariable=var_7)
-        entry_4.place(x=70,y=40)
-        variables['sFlowSampling']=entry_4
-
-        #Header
-        label_12=Label(frame2,text='Header:')
-        label_12.place(x=0,y=70)
-        var_3=StringVar()
-        var_3.set("128")
-        entry_5=Entry(frame2,textvariable=var_3)
-        entry_5.place(x=60,y=70)
-        variables['sFlowHeader']=entry_5
-
-        #Polling
-        label_13=Label(frame2,text='Polling:')
-        label_13.place(x=0,y=100)
-        var_4=StringVar()
-        var_4.set("30")
-        entry_6=Entry(frame2,textvariable=var_4)
-        entry_6.place(x=60,y=100)
-        variables['sFlowPolling']=entry_6
-
-        frame3=LabelFrame(root,width=350, height=160, text="NetFlow Profile for Open vSwitch")
-        frame3.place(x=400,y=170)
-        label_14=Label(frame3,text='Target:')
-        label_14.place(x=70,y=10)
-        entry_7=Entry(frame3)
-        entry_7.place(x=120,y=10)
-        variables['nFlowTarget']=entry_7
-
-        label_15=Label(frame3,text='Active Timeout:')
-        label_15.place(x=20,y=40)
-        var_5=StringVar()
-        var_5.set("600")
-        entry_8=Entry(frame3,textvariable=var_5)
-        entry_8.place(x=130,y=40)
-        variables['nFlowTimeout']=entry_8
-
-        label_16=Label(frame3,text='Add ID to Interface:')
-        label_16.place(x=0,y=70)
-        bouton7=Checkbutton(frame3,variable=nFlowAddId)
-        bouton7.place(x=135,y=70)
-
-        bouton8=Button(root,text="OK",width=10,command=self.logInformationsPreferences)
-        bouton8.place(x=280,y=345)
-        bouton9=Button(root,text="Cancel",width=10,command = lambda : root.destroy())
-        bouton9.place(x=400,y=345)
-        #root.mainloop()
 
     #Placer un bouton sur le canevas
     def canvasHandle(self,event):
         x1=event.x
         y1=event.y
         if (self.activeButton == 'Switch'):
-            #bouton1=Button(self.canvas,image=self.images['Switch'])
             self.switchNumber+=1
             name_switch='s'+str(self.switchNumber) #s1
-            bouton1=Button(self.canvas,image=self.images['Switch'],text=name_switch,compound='top',bg='white')
+            #bouton1=Button(self.canvas,image=self.images['Switch'],text=name_switch,compound='top',bg='white')
+            bouton1=Button(self.canvas1,image=self.images['Switch'],text=name_switch,compound='top',bg='white')
             self.switchOptions[bouton1]={}
             self.switchOptions[bouton1]['numSwitch']=self.switchNumber
             self.switchOptions[bouton1]['nameSwitch']=name_switch
             #self.switchOptions[bouton1]['controllers']=[]
-            self.switchOptions[bouton1]['options']={"controllers": [],"hostname": name_switch,"nodenum":self.switchNumber,"switchType":"Default",'stopCommand':'','sflow':0,'switchIP':'','dpid':'','dpctl':'','startCommand':'','netflow':0,'externalInterfaces':[]}
+            #self.switchOptions[bouton1]['options']={"controllers": [],"hostname": name_switch,"nodenum":self.switchNumber,"switchType":"Default",'stopCommand':'','sflow':0,'switchIP':'','dpid':'','dpctl':'','startCommand':'','netflow':0,'externalInterfaces':[]}
+            self.switchOptions[bouton1]['options']={"controllers": [],"hostname": name_switch,"nodeNum":self.switchNumber,"switchType":"Default"}
             self.name_switch.append(name_switch)
-            id1=self.canvas.create_window((x1,y1),anchor='center',window=bouton1,tags='Switch')
+            #id1=self.canvas.create_window((x1,y1),anchor='center',window=bouton1,tags='Switch')
+            id1=self.canvas1.create_window((x1,y1),anchor='center',window=bouton1,tags='Switch')
             self.widgetToItem[bouton1]=id1
             self.itemToWidget[id1]=bouton1
             self.itemToName[id1]=name_switch
@@ -2480,14 +2518,17 @@ class Interface():
             self.hostNumber+=1
             #bouton2=Button(self.canvas,image=self.images['Host'],text=str(self.hostNumber),compound='top')
             name_host='h'+str(self.hostNumber) #h1
-            bouton2=Button(self.canvas,image=self.images['Host'],text=name_host,bg='white',compound='top')
+            #bouton2=Button(self.canvas,image=self.images['Host'],text=name_host,bg='white',compound='top')
+            bouton2=Button(self.canvas1,image=self.images['Host'],text=name_host,bg='white',compound='top')
             self.hostOptions[bouton2]={}
             #self.hostOptions[bouton2]['sched']='host'
             self.hostOptions[bouton2]['numhost']=self.hostNumber
             self.hostOptions[bouton2]['hostname']=name_host
             self.hostOptions[bouton2]['options']={}
-            self.hostOptions[bouton2]['options']={'hostname':name_host,"nodeNum":self.hostNumber,"sched":"host",'stopCommand':'','externalInterfaces':[],'ip':'','privateDirectory':[],'nodeNum':self.hostNumber,'vlanInterfaces':[],'cores':'','startCommand':'','cpu':'','defaultRoute':''}
-            id2=self.canvas.create_window((x1,y1),anchor='center',window=bouton2,tags='host')
+            #self.hostOptions[bouton2]['options']={'hostname':name_host,"nodeNum":self.hostNumber,"sched":"host",'stopCommand':'','externalInterfaces':[],'ip':'','privateDirectory':[],'nodeNum':self.hostNumber,'vlanInterfaces':[],'cores':'','startCommand':'','cpu':'','defaultRoute':''}
+            #id2=self.canvas.create_window((x1,y1),anchor='center',window=bouton2,tags='host')
+            self.hostOptions[bouton2]['options']={'hostname':name_host,"nodeNum":self.hostNumber,"sched":"host"}
+            id2=self.canvas1.create_window((x1,y1),anchor='center',window=bouton2,tags='host')
             self.itemToName[id2]=name_host
             self.widgetToItem[bouton2]=id2
             self.itemToWidget[id2]=bouton2
@@ -2501,8 +2542,9 @@ class Interface():
             #bouton3=Button(self.canvas,image=self.images['Controller'])
             self.controllerNumber+=1
             name_controller='c'+str(self.controllerNumber)
-            bouton3=Button(self.canvas,image=self.images['Controller'],bg='white',text=name_controller,compound='top')
-            id3=self.canvas.create_window((x1,y1),anchor='center',window=bouton3,tags='Controller')
+            #bouton3=Button(self.canvas,image=self.images['Controller'],bg='white',text=name_controller,compound='top')
+            bouton3=Button(self.canvas1,image=self.images['Controller'],bg='white',text=name_controller,compound='top')
+            id3=self.canvas1.create_window((x1,y1),anchor='center',window=bouton3,tags='Controller')
             self.controllerOptions[bouton3]={}
             #self.controllerOptions[bouton3]['numController']=self.controllerNumber
             self.controllerOptions[bouton3]['hostname']=name_controller
@@ -2519,13 +2561,13 @@ class Interface():
         elif(self.activeButton == 'LegacySwitch'):
             self.switchNumber+=1
             name_legacySwitch = 's' + str(self.switchNumber)
-            bouton4=Button(self.canvas,image=self.images['LegacySwitch'],text=name_legacySwitch,bg='white',compound='top')
+            bouton4=Button(self.canvas1,image=self.images['LegacySwitch'],text=name_legacySwitch,bg='white',compound='top')
             self.buttons_canevas[name_legacySwitch]=bouton4
             self.legacySwitchOptions[bouton4]={}
             self.legacySwitchOptions[bouton4]['name']=name_legacySwitch
             self.legacySwitchOptions[bouton4]['number']=self.switchNumber
             self.legacySwitchOptions[bouton4]['options']={'num':self.switchNumber,'hostname':name_legacySwitch,'switchType':'LegacySwitch'}
-            id4=self.canvas.create_window((x1,y1),anchor='center',window=bouton4,tags='LegacySwitch')
+            id4=self.canvas1.create_window((x1,y1),anchor='center',window=bouton4,tags='LegacySwitch')
             self.itemToName[id4]=name_legacySwitch
             self.widgetToItem[bouton4]=id4
             self.itemToWidget[id4]=bouton4
@@ -2538,13 +2580,13 @@ class Interface():
             #print('we are in legacyRouter')
             self.switchNumber+=1
             name_legacyRouter = 'r' + str(self.switchNumber)
-            bouton5=Button(self.canvas,image=self.images['LegacyRouter'],text=name_legacyRouter,bg='white',compound='top')
+            bouton5=Button(self.canvas1,image=self.images['LegacyRouter'],text=name_legacyRouter,bg='white',compound='top')
             self.buttons_canevas[name_legacyRouter]=bouton5
             self.legacyRouterOptions[bouton5]={}
             self.legacyRouterOptions[bouton5]['name']=name_legacyRouter
             self.legacyRouterOptions[bouton5]['number']=self.switchNumber
             self.legacyRouterOptions[bouton5]['options']={'num':self.switchNumber,'hostname':name_legacyRouter,'switchType':'LegacyRouter'}
-            id5=self.canvas.create_window((x1,y1),anchor='center',window=bouton5,tags='LegacyRouter')
+            id5=self.canvas1.create_window((x1,y1),anchor='center',window=bouton5,tags='LegacyRouter')
             self.itemToName[id5]=name_legacyRouter
             self.widgetToItem[bouton5]=id5
             self.itemToWidget[id5]=bouton5
@@ -2563,8 +2605,8 @@ class Interface():
         savingControllers=[]
         dictionary={}
         for item in self.widgetToItem.values():
-            tag = self.canvas.gettags(item)
-            x,y = self.canvas.coords(item)
+            tag = self.canvas1.gettags(item)
+            x,y = self.canvas1.coords(item)
             widget=self.itemToWidget[item]
             if('Switch' in tag):
                 switchNum=self.switchOptions[widget]['numSwitch']
@@ -2642,8 +2684,8 @@ class Interface():
                 x= hosts[i]['x']
                 y=hosts[i]['y']
                 self.hostNumber+=1
-                icon = Button(self.canvas,image=self.images['Host'])
-                item = self.canvas.create_window(x,y,anchor='c',window=icon,tags='host')
+                icon = Button(self.canvas1,image=self.images['Host'])
+                item = self.canvas1.create_window(x,y,anchor='c',window=icon,tags='host')
                 self.widgetToItem[icon]=item
                 self.itemToWidget[item]=icon
                 self.nameToItem[hostname]=item;
@@ -2665,8 +2707,8 @@ class Interface():
                 x2=controllers[j]['x']
                 y2=controllers[j]['y']
                 self.controllerNumber+=1
-                icon2=Button(self.canvas,image=self.images['Controller'])
-                item2=self.canvas.create_window(x2,y2,anchor='c',window=icon2,tags='Controller')
+                icon2=Button(self.canvas1,image=self.images['Controller'])
+                item2=self.canvas1.create_window(x2,y2,anchor='c',window=icon2,tags='Controller')
                 self.buttons_canevas[controller_name]=icon2
                 self.widgetToItem[icon2]=item2
                 self.itemToWidget[item2]=icon2
@@ -2690,8 +2732,8 @@ class Interface():
                     x1=switches[i]['x']
                     y1=switches[i]['y']
                     self.switchNumber+=1
-                    icon1 = Button(self.canvas,image=self.images['Switch'])
-                    item1=self.canvas.create_window(x1,y1,anchor='c',window=icon1,tags='Switch')
+                    icon1 = Button(self.canvas1,image=self.images['Switch'])
+                    item1=self.canvas1.create_window(x1,y1,anchor='c',window=icon1,tags='Switch')
                     self.itemToName[item1]=switchName
                     self.widgetToItem[icon1]=item1
                     self.itemToWidget[item1]=icon1
@@ -2710,9 +2752,9 @@ class Interface():
                     if(len(controllers)!=0):
                         for controller in controllers:
                             controller_item = self.nameToItem[controller]
-                            dx, dy = self.canvas.coords(controller_item)
-                            self.link = self.canvas.create_line(float(x1),float(y1),dx,dy,width=4,fill='red',dash=(6, 4, 2, 4),tag='link')
-                            self.canvas.itemconfig(self.link,tags=self.canvas.gettags(self.link)+('control',))
+                            dx, dy = self.canvas1.coords(controller_item)
+                            self.link = self.canvas1.create_line(float(x1),float(y1),dx,dy,width=4,fill='red',dash=(6, 4, 2, 4),tag='link')
+                            self.canvas.itemconfig(self.link,tags=self.canvas1.gettags(self.link)+('control',))
                             self.liens.append(self.link)
                             self.links[self.link]={}
                             self.links[self.link]['src']=switchName
@@ -2732,8 +2774,8 @@ class Interface():
                     legacyswitch_name = options_switch['hostname']
                     x3=switches[i]['x']
                     y3=switches[i]['y']
-                    icon3=Button(self.canvas,image=self.images['LegacySwitch'])
-                    item3=self.canvas.create_window(x3,y3,anchor='c',window=icon3,tags='LegacySwitch')
+                    icon3=Button(self.canvas1,image=self.images['LegacySwitch'])
+                    item3=self.canvas1.create_window(x3,y3,anchor='c',window=icon3,tags='LegacySwitch')
                     self.widgetToItem[icon3]=item3
                     self.itemToWidget[item3]=icon3
                     self.names.append(legacyswitch_name)
@@ -2756,8 +2798,8 @@ class Interface():
                     x4=switches[i]['x']
                     y4=switches[i]['y']
                     legacyrouter_name=options_switch1['hostname']
-                    icon4=Button(self.canvas,image=self.images['LegacyRouter'])
-                    item4=self.canvas.create_window(x4,y4,anchor='c',window=icon4,tags='LegacyRouter')
+                    icon4=Button(self.canvas1,image=self.images['LegacyRouter'])
+                    item4=self.canvas1.create_window(x4,y4,anchor='c',window=icon4,tags='LegacyRouter')
                     self.buttons_canevas[legacyrouter_name]=icon4
                     self.widgetToItem[icon4]=item4
                     self.itemToWidget[item4]=icon4
@@ -2780,10 +2822,10 @@ class Interface():
                  dst=links[i]['dest'] #nom de DEST
                  #print('item_src'+str(self.nameToItem[src]))
                  #print('item_dest'+str(self.nameToItem[dst]))
-                 srcx,srcy=self.canvas.coords(self.nameToItem[src]); #coordonnées de la source
-                 destx,desty=self.canvas.coords(self.nameToItem[dst]);
-                 self.link=self.canvas.create_line(srcx,srcy,destx,desty,width=4,fill='blue',tag='link')
-                 self.canvas.itemconfig(self.link,tags=self.canvas.gettags(self.link)+('data',))
+                 srcx,srcy=self.canvas1.coords(self.nameToItem[src]); #coordonnées de la source
+                 destx,desty=self.canvas1.coords(self.nameToItem[dst]);
+                 self.link=self.canvas1.create_line(srcx,srcy,destx,desty,width=4,fill='blue',tag='link')
+                 self.canvas1.itemconfig(self.link,tags=self.canvas1.gettags(self.link)+('data',))
                  self.links[self.link]={}
                  self.links[self.link]['options']={}
                  self.links[self.link]['src']=src
@@ -2799,13 +2841,13 @@ class Interface():
         f.close()
 
     def canvasx( self, x_root ):
-        return self.canvas.canvasx( x_root ) - self.canvas.winfo_rootx()
+        return self.canvas1.canvasx( x_root ) - self.canvas1.winfo_rootx()
 
     def canvasy( self, y_root ):
-        return self.canvas.canvasy( y_root ) - self.canvas.winfo_rooty()
+        return self.canvas1.canvasy( y_root ) - self.canvas1.winfo_rooty()
 
     def findObject(self,x,y):
-        items = self.canvas.find_overlapping(x,y,x,y)
+        items = self.canvas1.find_overlapping(x,y,x,y)
         if len(items) == 0:
             return
         else:
@@ -2814,12 +2856,12 @@ class Interface():
     def createLink(self,event):
         w = event.widget
         item = self.widgetToItem[w]
-        x, y = self.canvas.coords(item)
+        x, y = self.canvas1.coords(item)
         self.coordonnees["i0"]=x
         self.coordonnees["j0"]=y
-        self.link = self.canvas.create_line(x,y,x,y,width=4,fill='blue',tag='link')
+        self.link = self.canvas1.create_line(x,y,x,y,width=4,fill='blue',tag='link')
         self.links[self.link]={}
-        tags = self.canvas.gettags(item)
+        tags = self.canvas1.gettags(item)
         if ('Switch' in tags):
             self.links[self.link]['src']=self.switchOptions[w]['nameSwitch']
         elif('host' in tags):
@@ -2841,48 +2883,46 @@ class Interface():
 
         def linkColorEntry(_event,link=self.link):
             self.selectedLink=link
-            self.canvas.itemconfig(link,fill='red')
+            self.canvas1.itemconfig(link,fill='red')
 
         def linkColorLeave(_event,link=self.link):
-            self.canvas.itemconfig(link,fill='blue')
+            self.canvas1.itemconfig(link,fill='blue')
 
-        self.canvas.tag_bind(self.link,'<Enter>',linkColorEntry)
-        self.canvas.tag_bind(self.link,'<Leave>',linkColorLeave)
-        self.canvas.tag_bind(self.link,'<Button-3>',self.popup_link)
+        self.canvas1.tag_bind(self.link,'<Enter>',linkColorEntry)
+        self.canvas1.tag_bind(self.link,'<Leave>',linkColorLeave)
+        self.canvas1.tag_bind(self.link,'<Button-3>',self.popup_link)
 
 
     def dragLink(self,event):
         b = self.canvasx( event.x_root ) # coordonnées d'arrivée
         n = self.canvasy( event.y_root ) # coordonnées d'arrivée
-        self.canvas.coords(self.link,self.coordonnees["i0"],self.coordonnees["j0"],b,n)
+        self.canvas1.coords(self.link,self.coordonnees["i0"],self.coordonnees["j0"],b,n)
 
     def ControlLinkBindings( self ):
 
         def linkColorEntry1(_event,link=self.link ):
             self.selectedLink=link
-            self.canvas.itemconfig(link,fill='blue')
+            self.canvas1.itemconfig(link,fill='blue')
 
         def linkColorLeave1( _event,link=self.link):
-            self.canvas.itemconfig( link, fill='red' )
+            self.canvas1.itemconfig( link, fill='red' )
 
-        self.canvas.tag_bind(self.link,'<Enter>',linkColorEntry1)
-        self.canvas.tag_bind(self.link,'<Leave>',linkColorLeave1)
+        self.canvas1.tag_bind(self.link,'<Enter>',linkColorEntry1)
+        self.canvas1.tag_bind(self.link,'<Leave>',linkColorLeave1)
 
     def linkUp(self):
         link = self.selectedLink
         src = self.links[link]['src']
-        #print('src '+str(src))
         dst = self.links[link]['dest']
-        #print('dst ' + str(dst))
         self.net.configLinkStatus(src,dst,'up')
-        self.canvas.itemconfig(link, dash=())
+        self.canvas1.itemconfig(link, dash=())
 
     def linkDown(self):
         link = self.selectedLink
         src = self.links[link]['src']
         dst = self.links[link]['dest']
         self.net.configLinkStatus(src,dst,'down')
-        self.canvas.itemconfig(link, dash=())
+        self.canvas1.itemconfig(link, dash=())
 
     def finishLink(self,event):
         #we drag from the widget , we use root coordonnees
@@ -2891,12 +2931,12 @@ class Interface():
         x = self.canvasx(event.x_root) # coordonnées d'arrivée du lien
         y= self.canvasy(event.y_root) # coordonnées d'arrivée du lien
         target = self.findObject(x,y) # item du widget d'arrivée
-        srctags=self.canvas.gettags(srcItem)
-        desttags=self.canvas.gettags(target)
+        srctags=self.canvas1.gettags(srcItem)
+        desttags=self.canvas1.gettags(target)
         dest1=self.itemToWidget.get(target,None) #widget correspondant à l'item se trouvant à l'arrivée
 
         if(dest1 == None):
-            self.canvas.delete( self.link )
+            self.canvas1.delete( self.link )
             del self.source[src]
             del self.links[self.link]
             return
@@ -2904,7 +2944,7 @@ class Interface():
             #self.linkWidget=None
 
         if (dest1 != None):
-            tags=self.canvas.gettags(target)
+            tags=self.canvas1.gettags(target)
             if('Switch' in tags):
                 self.links[self.link]['dest']=self.switchOptions[dest1]['nameSwitch']
             elif('host' in tags):
@@ -2924,7 +2964,7 @@ class Interface():
               ('Controller' in srctags and 'host' in desttags)or
               ('host' in srctags and 'Controller' in desttags)or
               ('Controller' in srctags and 'Controller' in desttags)):
-              self.canvas.delete(self.link)
+              self.canvas1.delete(self.link)
               del self.links[self.link]
               return
               #self.link=None
@@ -2933,16 +2973,16 @@ class Interface():
             ('Switch' in srctags and 'Controller' in desttags)):
             linkType='control'
             self.links[self.link]['type']='control'
-            self.canvas.itemconfig(self.link,dash=(6, 4, 2, 4),fill='red')
+            self.canvas1.itemconfig(self.link,dash=(6, 4, 2, 4),fill='red')
             self.ControlLinkBindings()
-            self.canvas.itemconfig(self.link,tags=self.canvas.gettags(self.link)+(linkType,))
+            self.canvas1.itemconfig(self.link,tags=self.canvas1.gettags(self.link)+(linkType,))
             self.liens.append(self.link)
         else:
             #print("i m not a controller , setting links")
             linkType='data'
             self.links[self.link]['type']='data'
             self.DataLinkBindings()
-            self.canvas.itemconfig(self.link,tags=self.canvas.gettags(self.link)+(linkType,))
+            self.canvas1.itemconfig(self.link,tags=self.canvas1.gettags(self.link)+(linkType,))
             self.liens.append(self.link)
 
         if(('Controller' in srctags and 'Switch' in desttags)):
@@ -2966,33 +3006,24 @@ class Interface():
 
 
     def dumpNodes(self,nodes):
-        root=Toplevel()
-        root.title('Net')
-        text1=Text(root,height=10,width=60)
-        scroll = Scrollbar(root, command=text1.yview)
-        #scroll1=Scrollbar(root,command=text1.xview)
-        text1.configure(yscrollcommand=scroll.set)
-        #text1.configure(xscrollcommand=scroll1.set)
-        text1.tag_configure('big',justify='center',font=('Helvetica',16,'bold'),foreground='RoyalBlue1',underline=1)
-        text1.tag_configure('color',font=('Helvetica',11,'bold'))
-        text1.config(state="normal")
-        text1.insert(END,'\nLinks between nodes\n\n','big')
+        self.textCanvas.tag_configure('big',justify='center',font=('Helvetica',16,'bold'),foreground='RoyalBlue1',underline=1)
+        self.textCanvas.tag_configure('color',font=('Helvetica',11,'bold'))
+        self.textCanvas.config(state="normal")
+        self.textCanvas.delete('1.0',END)
+        self.textCanvas.insert(END,'\nLinks between nodes\n\n','big')
         for node in nodes:
-            text1.insert(INSERT,str(node.name)+' ','color')
+            self.textCanvas.insert(INSERT,str(node.name)+' ','color')
             for intf in node.intfList():
-                text1.insert(INSERT,str(intf)+':','color')
+                self.textCanvas.insert(INSERT,str(intf)+':','color')
                 if intf.link:
                     intfs = [ intf.link.intf1, intf.link.intf2 ]
                     intfs.remove( intf )
-                    text1.insert(INSERT,intfs[0],'color')
-                    text1.insert(INSERT,' ','color')
+                    self.textCanvas.insert(INSERT,intfs[0],'color')
+                    self.textCanvas.insert(INSERT,' ','color')
                 else:
-                    text1.insert(INSERT,' ','color')
-            text1.insert(INSERT,'\n')
-        text1.config(state='disabled')
-        text1.pack(side=LEFT)
-        scroll.pack(side=RIGHT,fill=Y)
-        #scroll1.pack(side=BOTTOM,fill=X)
+                    self.textCanvas.insert(INSERT,' ','color')
+            self.textCanvas.insert(INSERT,'\n')
+        self.textCanvas.config(state='disabled')
 
     def dumpNet(self):
         nodes=self.net.controllers + self.net.switches + self.net.hosts
@@ -3013,7 +3044,7 @@ class Interface():
             for widget in self.widgetToItem:
                 item=self.widgetToItem[widget]
                 name=self.itemToName[item]
-                tags = self.canvas.gettags(item)
+                tags = self.canvas1.gettags(item)
                 if 'Switch' in tags:
                     options = self.switchOptions[widget]
                     switch_options=options['options']
@@ -3041,7 +3072,7 @@ class Interface():
         for widget in self.widgetToItem:
             item=self.widgetToItem[widget]
             name = self.itemToName[item]
-            tags = self.canvas.gettags(item)
+            tags = self.canvas1.gettags(item)
 
             if 'host' in tags:
                 newHost = self.net.get(name)
@@ -3072,7 +3103,7 @@ class Interface():
             for widget in self.widgetToItem:
                 item1=self.widgetToItem[widget]
                 name=self.itemToName[item1]
-                tags = self.canvas.gettags(item1)
+                tags = self.canvas1.gettags(item1)
 
                 if 'Switch' in tags:
                     switch_opts = self.switchOptions[widget]['options']
@@ -3103,7 +3134,7 @@ class Interface():
             for widget in self.widgetToItem:
                 item2=self.widgetToItem[widget]
                 name2=self.itemToName[item2]
-                tags = self.canvas.gettags(item2)
+                tags = self.canvas1.gettags(item2)
 
                 if 'Switch' in tags:
                     switch_opts1 = self.switchOptions[widget]['options']
@@ -3127,58 +3158,12 @@ class Interface():
             info( "\n\n NOTE: PLEASE REMEMBER TO EXIT THE CLI BEFORE YOU PRESS THE STOP BUTTON. Not exiting will prevent MiniEdit from quitting and will prevent you from starting the network again during this sessoin.\n\n")
             CLI(self.net)
 
-    def changehostname(self,*args):
-        hostnames['host0']=var_name.get()
-        host_nodes[0]=self.name_host[hostnames['host0']]
-        #print("host_nodes"+str(host_nodes)+'\n')
-
-    def changehostname1(self,*args):
-        hostnames['host1']=var_name1.get()
-        host_nodes[1]=self.name_host[hostnames['host1']]
-        #print("host_nodes 1 " + str(host_nodes) + '\n')
-
-    def pingpair(self):
-        global host_nodes
-        global hostnames
-        hostnames={}
-        global var_name
-        global var_name1
-        name_hosts=()
-        for host in self.name_host.keys():
-            name_hosts=name_hosts+(str(host),)
-        #print(name_hosts)
-        root=Toplevel()
-        root.geometry('300x150')
-        helv36 = Font(family='Helvetica', size=10, weight='bold')
-        label=Label(root,text='Available nodes',font=helv36)
-        label.place(x=100,y=0)
-
-        label1=Label(root,text='Choose nodes',font=helv36)
-        label1.place(x=110,y=30)
-        hostnames['host0']=name_hosts[0]
-        hostnames['host1']=name_hosts[0]
-        host_nodes=[self.name_host[hostnames['host0']],self.name_host[hostnames['host1']]]
-        var_name=StringVar()
-        var_name.trace("w",self.changehostname)
-        var_name1=StringVar()
-        var_name1.trace("w",self.changehostname1)
-        var_name.set(name_hosts[0])
-        var_name1.set(name_hosts[0])
-        dropDownMenu=OptionMenu(root,var_name,*name_hosts)
-        dropDownMenu.place(x=85,y=60)
-        dropDownMenu1=OptionMenu(root,var_name1,*name_hosts)
-        dropDownMenu1.place(x=175,y=60)
-        #hosts_nodes=[self.name_host[hostnames['host0']],self.name_host[hostnames['host1']]]
-        #cmd = lambda arg1=hosts_nodes : self.pinghosts(arg1,timeout=None)
-        bouton = Button(root,text='OK',command=partial(self.pinghosts1,host_nodes))
-        bouton.place(x=135,y=100)
-
     def stop_net( self ):
         if self.net is not None:
             for widget in self.widgetToItem:
                 item=self.widgetToItem[widget]
                 name = self.itemToName[item]
-                tags = self.canvas.gettags(item)
+                tags = self.canvas1.gettags(item)
                 if 'host' in tags:
                     newHost = self.net.get(name)
                     host_options = self.hostOptions[widget]['options']
@@ -3227,7 +3212,7 @@ class Interface():
         setLogLevel( 'info' )
         info("Getting Hosts and Switches.\n")
         for item in self.widgetToItem.values():
-            tags = self.canvas.gettags(item)
+            tags = self.canvas1.gettags(item)
             name=str(self.itemToName[item])
 
             if 'Switch' in tags:
@@ -3423,7 +3408,7 @@ class Interface():
         setLogLevel('info')
         info( "Getting Links.\n" )
         for link in self.links.keys():
-            tags = self.canvas.gettags(link)
+            tags = self.canvas1.gettags(link)
             if 'data' in tags:
                 #print('we are in data link\n')
                 src=self.links[link]['src']
@@ -3463,7 +3448,6 @@ def main():
     fenetre.title('New Miniedit')
     fenetre['bg']="white"
     fenetre.geometry("1000x1000")
-
     interface = Interface(fenetre)
     fenetre.mainloop()
 
