@@ -4,8 +4,16 @@
 from Tkinter import *
 from PIL import Image,ImageTk
 #from Tkinter import ttk
+import subprocess
+import urllib2
+import threading
+from util import pmonitor
+from subprocess import Popen
+from random import randint
 import ttk
 import time
+import json
+import select
 from tkFont import Font
 import tkFileDialog
 import logging
@@ -196,6 +204,88 @@ class switchWindow(object):
     def okAction(self):
         self.setResult()
         self.top.destroy()
+
+class spanningTree(object):
+
+    def __init__(self, master,dict_switch,textstp,textrequest,canvasstp):
+        self.canvas = canvasstp
+        self.top = Toplevel(master)
+        self.top.geometry('200x200')
+        self.textstp = textstp
+        self.textrequest = textrequest
+        self.dict_switches = dict_switch
+        self.names = []
+        self.process = None
+        self.name_switches()
+        self.switch = StringVar()
+        self.switch.set(self.names[0])
+
+        self.listswitch = [self.names[0]]
+        self.chooseswitch()
+
+    def name_switches(self):
+        for element in self.dict_switches.keys():
+            self.names.append(element)
+
+    def changeswitch(self,*args):
+        self.listswitch[0] = self.switch.get()
+
+    def chooseswitch(self):
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        switches = self.names
+        label = Label(self.top,text='Choose a switch',font=helv36)
+        label.place(x='5',y='20')
+        self.switch.trace("w",self.changeswitch)
+        dropDownMenu=OptionMenu(self.top,self.switch,*switches)
+        dropDownMenu.place(x='5',y='60')
+        bouton = Button(self.top,text='OK',command = self.okActionThread)
+        bouton.place(x='70',y='60')
+
+    def reset(self):
+        file = open('request.txt','r')
+        lines = file.readlines()
+        self.textrequest.delete('1.0',END)
+        self.textrequest.insert(INSERT,'hello')
+        for line in lines:
+            self.textrequest.insert(INSERT,line)
+
+    def okAction(self):
+        #p.send_signal(subprocess.signal.SIGTERM)
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        bouton_finish = Button(self.canvas,width=9,height=2,bg='white',text='Finish',font=helv36,command = self.finish)
+        bouton_finish.place(x='5',y='130')
+        self.top.destroy()
+
+        interface = self.listswitch[0]+'-eth2'
+        myoutput = open('request.txt','w+')
+
+        #x = subprocess.Popen(['ryu-manager','switchstp.py'],stdout=myoutput,stderr=myoutput, universal_newlines=True)
+        self.process = subprocess.Popen(["tcpdump","-i",interface,'arp'], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+
+        y = select.poll()
+        y.register(myoutput,select.POLLIN)
+
+        file = open('request.txt','r')
+        self.textrequest.delete('1.0',END)
+        #while True:
+        while True:
+            if y.poll(1):
+                self.textrequest.insert(INSERT,file.readline(),'color')
+            else:
+                time.sleep(1)
+
+    def okActionThread(self):
+        r = threading.Thread(target=self.okAction)
+        r.start()
+
+    def finish(self):
+        self.process.terminate()
+        #time.sleep(5)
+        #self.terminatedtcpdump = False
+        #self.process.terminate()
+        # lines = file.readlines()
+        # for line in lines:
+        #     self.textrequest.insert(INSERT,line)
 
 class hostWindow(object):
 
@@ -782,6 +872,346 @@ class prefWindow(object):
         self.setResult()
         self.top.destroy()
 
+class firewallWindow(object):
+
+    def __init__(self,master,dict_switch,textcurl,textfirewall,links,dict_host,canvasrules,textrules):
+        self.canvasrule = canvasrules
+        self.top = Toplevel(master)
+        self.liens = links
+        self.texte = textcurl
+        self.listhosts=[]
+        self.dict_hosts = dict_host
+        self.texteFirewall = textfirewall
+        self.textrules = textrules
+        self.top.geometry('200x100')
+        self.dict_switches = dict_switch
+        self.liste = []
+        self.listevar = []
+        self.listevalue=[]
+        self.listblock=[]
+        self.listlet=[]
+        self.names = []
+        self.hostswitch = []
+        self.placeButton()
+        self.hostnames= []
+        self.hostname()
+        self.setNames()
+        self.name = StringVar()
+        self.name.set(self.names[0])
+        self.listname = [self.names[0]]
+        self.number = StringVar()
+        self.number.set('0')
+        self.listnumber=['0']
+        #self.setvariable(self.hostnames)
+        self.chooseswitch()
+
+    def setNames(self):
+        for element in self.dict_switches.keys():
+            self.names.append(element)
+
+    def hostname(self):
+        for element in self.dict_hosts.keys():
+            self.hostnames.append(element)
+
+    def changes(self,i,*args):
+        self.listevalue[i][0] = self.listevar[i][0].get()
+        #print(self.listvalue[i][0])
+
+    def changevar(self,i,*args):
+        self.listevalue[i][1] = self.listevar[i][1].get()
+        #print(self.listvalue[i][1])
+
+    def labels(self,hosts):
+        root = Toplevel()
+        root.geometry('500x500')
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        frame = ScrolledFrame(root)
+        frame.pack(expand=True,fill='both')
+        frame.inner.config(bg='gray85')
+        protocols = ['TCP','UDP','TCMP']
+        label = Label(frame.inner,text='Setting rules',font=helv36)
+        label.place(x='5',y='10')
+        ord = 40
+        ord1 = 10
+        t = 0
+        for i in range(0,len(hosts)*2):
+            #Source
+            labelSource = Label(frame.inner,text='Source',font=helv36)
+            labelSource.place(x='5',y=ord)
+
+            self.listevar[i][0].set(hosts[0])
+            self.listevar[i][0].trace("w",partial(self.changes,i))
+            dropDownMenu_src = OptionMenu(frame.inner,self.listevar[i][0],*hosts) #variable choisis
+            dropDownMenu_src.place(x=5,y=ord+30)
+
+            #Destination
+            labeldest = Label(frame.inner,text='Destination',font=helv36)
+            labeldest.place(x=150,y=ord)
+
+            self.listevar[i][1].set(hosts[0])
+            self.listevar[i][1].trace("w",partial(self.changevar,i))
+            dropDownMenu_dest = OptionMenu(frame.inner,self.listevar[i][1],*hosts) #variable choisis
+            dropDownMenu_dest.place(x=150,y=ord+30)
+
+            #Blocking packets
+            labelBlock=Label(frame.inner,text='Blocking packets',font=helv36)
+            labelBlock.place(x=5,y=ord+70)
+            labelTCP = Label(frame.inner,text='TCP',font=helv36)
+            labelTCP.place(x=5,y=ord+100)
+            checkbuttonTCP = Checkbutton(frame.inner,variable=self.listblock[i][0])
+            checkbuttonTCP.place(x=70,y=ord+100)
+
+            labelUDP = Label(frame.inner,text='UDP',font=helv36)
+            labelUDP.place(x=130,y=ord+100)
+            checkbuttonUDP = Checkbutton(frame.inner,variable=self.listblock[i][1])
+            checkbuttonUDP.place(x=170,y=ord+100)
+
+            labelICMP = Label(frame.inner,text='ICMP',font=helv36)
+            labelICMP.place(x=230,y=ord+100)
+            checkbuttonICMP = Checkbutton(frame.inner,variable=self.listblock[i][2])
+            checkbuttonICMP.place(x=270,y=ord+100)
+
+            label_let = Label(frame.inner,text='Letting packets',font=helv36)
+            label_let.place(x=5,y=ord+130)
+
+            labelTCP1=Label(frame.inner,text='TCP',font=helv36)
+            labelTCP1.place(x=5,y=ord+160)
+            checkbuttonTCP1 = Checkbutton(frame.inner,variable=self.listlet[i][0])
+            checkbuttonTCP1.place(x=70,y=ord+160)
+
+            labelUDP1=Label(frame.inner,text='UDP',font=helv36)
+            labelUDP1.place(x=130,y=ord+160)
+            checkbuttonUDP1 = Checkbutton(frame.inner,variable=self.listlet[i][1])
+            checkbuttonUDP1.place(x=170,y=ord+160)
+
+            labelICMP1=Label(frame.inner,text='ICMP',font=helv36)
+            labelICMP1.place(x=230,y=ord+160)
+            checkbuttonICMP1 = Checkbutton(frame.inner,variable=self.listlet[i][2])
+            checkbuttonICMP1.place(x=270,y=ord+160)
+            ord+=230
+
+        #bouton = Button(frame.inner,text='OK',command=partial(self.okAction1,root))
+        bouton = Button(frame.inner,text='OK',font=helv36,command=partial(self.okAction1,root))
+        bouton.place(x=5,y=ord+10)
+        boutoncancel = Button(frame.inner,text='Cancel',font=helv36,command=lambda : root.destroy())
+        boutoncancel.place(x=150,y=ord+10)
+        frame.inner.config(height=ord+70)
+
+    def changeswitchName(self,*args):
+        self.listname[0]=self.name.get()
+
+    def defaultDpid(self,name):
+        nums = re.findall( r'\d+', name )
+        if nums:
+            dpid = hex( int( nums[ 0 ] ) )[ 2: ]
+            return '0' * ( 16 - len( dpid ) ) + dpid
+
+    def chooseswitch(self):
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
+        names = self.names
+        label=Label(self.top,text='Choose node',font=helv36)
+        label.place(x=5,y=10)
+        self.name.trace("w",self.changeswitchName)
+        dropDownMenu=OptionMenu(self.top,self.name,*names)
+        dropDownMenu.place(x=5,y=50)
+        bouton = Button(self.top,text='OK',command=self.okAction)
+        bouton.place(x=80,y=50)
+
+    def placeButton(self):
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        bouton_addrule = Button(self.canvasrule,text='add rule',width=9,height=2,bg='white',font=helv36,command = partial(self.labels,self.hostswitch))
+        bouton_addrule.place(x='5',y='130')
+        bouton_rules = Button(self.canvasrule,text='Rules',width=9,height=2,bg='white',font=helv36,command = self.rules)
+        bouton_rules.place(x='5',y='190')
+        bouton_deleterule = Button(self.canvasrule,text='Delete rule',width=9,height=2,bg='white',font=helv36,command = self.openWindow)
+        bouton_deleterule.place(x='5',y='250')
+        bouton_stop = Button(self.canvasrule,text='stop Firewall',width=9,height=2,bg='white',font=helv36,command = self.stopFirewall)
+        bouton_stop.place(x='5',y='310')
+
+    def openWindow(self):
+        root = Toplevel()
+        root.geometry('200x150')
+        liste = []
+        for i in range(0,21):
+            liste.append(i)
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
+        label = Label(root,text='Choose a rule to delete ',font=helv36)
+        label.place(x=5,y=10)
+        self.number.trace('w',self.changeNumber)
+        dropDownMenu=OptionMenu(root,self.number,*liste)
+        dropDownMenu.place(x=5,y=40)
+        bouton = Button(root,text='OK',command=partial(self.deleterule,root))
+        bouton.place(x=85,y=80)
+
+    def changeNumber(self,*args):
+        self.listnumber[0]=self.number.get()
+
+    def deleterule(self,root):
+        #curl -X DELETE -d '{"rule_id": "X"}' http://localhost:8080/firewall/rules/SWITCH_ID
+        data={}
+        data['rule_id'] = str(self.listnumber[0])
+        data = json.dumps(data)
+        myoutput = open('rules1.txt','w+')
+        url = 'http://localhost:8080/firewall/rules/' + self.defaultDpid(self.listname[0])
+        p = Popen(['curl','-X','DELETE','-d',data,url], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        output, errors = p.communicate()
+        file = open('rules1.txt','r')
+        lines = file.readlines()
+        self.texte.insert(INSERT,'\n' +'\n' + 'Deleting rule number ' + self.listnumber[0]+ '\n','big')
+        for line in lines[3:]:
+            self.texte.insert(INSERT,line +'\n' +'\n','color')
+        root.destroy()
+
+    def rules(self):
+        self.textrules.delete('1.0',END)
+        myoutput = open('rules.txt','w+')
+        p = Popen(["curl",'http://localhost:8080/firewall/rules/' + self.defaultDpid(self.listname[0])], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        output, errors = p.communicate()
+
+        time.sleep(3)
+
+        file = open('rules.txt','r')
+        lines = file.readlines()
+        self.textrules.insert(INSERT,'Established rules :' +'\n','big')
+        for line in lines[3:] :
+            self.textrules.insert(INSERT,line,'color')
+
+    def stopFirewall(self):
+
+        myoutput = open('terminate.txt','w+')
+        p = Popen(["curl","-X",'PUT','http://localhost:8080/firewall/module/disable/' + self.defaultDpid(self.listname[0])], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        output, errors = p.communicate()
+
+        time.sleep(3)
+
+        p1 = Popen(["curl",'http://localhost:8080/firewall/module/status'], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        output1,errors1 = p1.communicate()
+
+        #time.sleep(3)
+
+        file = open('terminate.txt','r')
+        lines = file.readlines()
+        self.texte.insert(INSERT,'\n'+ 'Desactivating the firewall for switch ' + self.listname[0] + '\n','big')
+        self.texte.insert(INSERT,lines[3] + '\n','color')
+        self.texte.insert(INSERT,'Status of the firewall : ' + '\n','big')
+        self.texte.insert(INSERT,lines[6]+'\n'+'\n','color')
+
+    def okAction(self):
+
+        myoutput = open('output1.txt','w+')
+        p = Popen(["curl","-X",'PUT','http://localhost:8080/firewall/module/enable/' + self.defaultDpid(self.listname[0])], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        output, errors = p.communicate()
+
+        time.sleep(3)
+        myoutput.write('\n')
+        p1 = Popen(["curl",'http://localhost:8080/firewall/module/status'], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        output1,errors1 = p1.communicate()
+
+        time.sleep(3)
+
+        file = open('output1.txt','r')
+        lines = file.readlines()
+        #self.texte.insert(INSERT,'Activation of the firewall for switch' + self.listname[0] + ' : ' + '\n' + lines[3] + '\n')
+        self.texte.insert(INSERT,'Activation of the firewall for switch ' + self.listname[0] + '\n','big')
+        self.texte.insert(INSERT,lines[3] +'\n','color')
+        #self.texte.insert(INSERT,'Status of the firewall : ' + '\n' + lines[6] + '\n')
+        self.texte.insert(INSERT,'Status of the firewall : ' + '\n' ,'big')
+        self.texte.insert(INSERT,lines[6] + '\n','color')
+
+        fileOutput = open('output.txt','r')
+        linesOutput = fileOutput.readlines()
+        self.texteFirewall.delete('1.0',END)
+        for lin in linesOutput :
+            self.texteFirewall.insert(INSERT,lin,'color')
+
+        self.top.destroy()
+
+        for link in self.liens.keys():
+            if(self.liens[link]['src'] == self.listname[0] ):
+                if(self.liens[link]['dest'] in self.hostnames):
+                    self.hostswitch.append(self.liens[link]['dest'])
+            elif(self.liens[link]['dest'] == self.listname[0]):
+                if(self.liens[link]['src'] in self.hostnames):
+                    self.hostswitch.append(self.liens[link]['src'])
+
+        #self.labels(self.hostswitch)
+        self.setvar()
+
+    def setvar(self):
+        liste=['TCP','UDP','ICMP']
+        for i in range(0,len(self.hostswitch)*2):
+            variable=StringVar()
+            variable1=StringVar()
+            self.listevar.append([variable,variable1])
+            self.listevalue.append([self.hostswitch[0],self.hostswitch[0]])
+            self.listblock.append([IntVar(),IntVar(),IntVar()])
+            self.listlet.append([IntVar(),IntVar(),IntVar()])
+
+    def okAction1(self,root):
+        #curl -X POST -d  '{"nw_src": "X.X.X.X/32", "nw_dst": "X.X.X.X/32", "nw_proto": "ICMP", "actions": "DENY"}' http://localhost:8080/firewall/rules/SWITCH_ID  # Ajouter une règle bloquant les paquets ICMP (PING) d'une adresse A vers une adresse B (dans un terminal)
+        print(self.listevalue)
+        for i in range(0,len(self.listblock)) :
+                print(self.listevalue[i])
+                print(['TCP: ' + str(self.listblock[i][0].get()) , 'UDP : ' + str(self.listblock[i][1].get()) , 'ICMP :' + str(self.listblock[i][2].get())])
+                print('\n')
+
+        for i in range(0,len(self.listblock)):
+            protocols = ['TCP','UDP','ICMP']
+            for j in range(0,len(self.listblock[i])):
+                if(self.listblock[i][j].get() == 1):
+                    print('Blocked protocol: ' + protocols[j])
+                    print(self.listevalue[i])
+                    ip1 = self.dict_hosts[self.listevalue[i][0]].IP()
+                    ip2 = self.dict_hosts[self.listevalue[i][1]].IP()
+                    ip1= ip1 + '/32'
+                    ip2 = ip2 + '/32'
+                    print('ip host1 : ' + ip1)
+                    print('ip host2 : '+ ip2 )
+                    print('\n')
+                    data = {}
+                    data['nw_src'] = ip1
+                    data['nw_dst'] = ip2
+                    data['nw_proto']= protocols[j]
+                    data['actions']='DENY'
+                    data = json.dumps(data)
+                    url = 'http://localhost:8080/firewall/rules/' + self.defaultDpid(self.listname[0])
+                    req = urllib2.Request(url, data, {'Content-Type': 'application/json'})
+                    f = urllib2.urlopen(req)
+                    self.texte.insert(INSERT,'\n' + '\n' + 'Source: ' + self.listevalue[i][0] + ' Destination : ' + self.listevalue[i][1] + '\n','big')
+                    self.texte.insert(INSERT,"Rule : Block " + protocols[j] + ' paquets between ' + self.listevalue[i][0] + ' and ' + self.listevalue[i][1] + '\n' + '\n','big')
+                    for x in f:
+                       self.texte.insert(INSERT,x,'color')
+                    f.close()
+                    self.texte.insert(INSERT,'\n')
+                    time.sleep(1)
+
+        #Letting a type of packets
+        for i in range(0,len(self.listlet)):
+            for j in range(0,len(self.listlet[i])):
+                if(self.listlet[i][j].get() == 1):
+                    ip1 = self.dict_hosts[self.listevalue[i][0]].IP()
+                    ip2 = self.dict_hosts[self.listevalue[i][1]].IP()
+                    ip1= ip1 + '/32'
+                    ip2 = ip2 + '/32'
+                    print('ip1'+ip1+'\n')
+                    print('ip2'+ip2+'\n')
+                    data = {}
+                    data['nw_src'] = ip1
+                    data['nw_dst'] = ip2
+                    data['nw_proto']= protocols[j]
+                    data = json.dumps(data)
+                    url = 'http://localhost:8080/firewall/rules/' + self.defaultDpid(self.listname[0])
+                    req = urllib2.Request(url, data, {'Content-Type': 'application/json'})
+                    f = urllib2.urlopen(req)
+                    self.texte.insert(INSERT,'\n' + '\n' + 'Source: ' + self.listevalue[i][0] + ' Destination : ' + self.listevalue[i][1] +'\n','big')
+                    self.texte.insert(INSERT,"Rule : Let " + protocols[j] + ' paquets between ' + self.listevalue[i][0] + ' and ' + self.listevalue[i][1] + '\n' + '\n','big')
+                    for x in f:
+                       self.texte.insert(INSERT,x,'color')
+                    f.close()
+                    self.texte.insert(INSERT,'\n' + '\n')
+        root.destroy()
+
+
 class LegacySwitch(OVSSwitch):
     def __init__(self,name,**params):
         OVSSwitch.__init__(self,name,failMode='standalone',**params )
@@ -819,11 +1249,44 @@ class LegacyRouter(Node):
             self.cmd('sysctl -w net.ipv4.ip_forward=1')
             return r
 
+class ScrolledFrame(Frame,object):
+
+       def __init__(self, parent, vertical=True, horizontal=False):
+           #super().__init__(parent)
+           super(ScrolledFrame,self).__init__(parent)
+           #self._canvas = Canvas(self)
+           # 860 640
+           #self._canvas = Canvas(self,width=860,height=640)
+           self._canvas=Canvas(self,width=1158,height=653)
+           self._canvas.grid(row=0, column=0, sticky='news')  # changed
+           self._vertical_bar = Scrollbar(self, orient='vertical', command=self._canvas.yview)
+           if vertical:
+               self._vertical_bar.grid(row=0, column=1, sticky='ns')
+           self._canvas.configure(yscrollcommand=self._vertical_bar.set)
+           self._horizontal_bar = Scrollbar(self, orient='horizontal', command=self._canvas.xview)
+           if horizontal:
+               self._horizontal_bar.grid(row=1, column=0, sticky='we')
+           self._canvas.configure(xscrollcommand=self._horizontal_bar.set)
+           self._vertical_bar.config(command=self._canvas.yview)
+           self.inner = Frame(self._canvas,width=1000,height=1000,bg='slateGray1')
+           self._window = self._canvas.create_window((0, 0), window=self.inner, anchor='nw')
+           self.columnconfigure(0, weight=1)  # changed
+           self.rowconfigure(0, weight=1)  # changed
+           self.inner.bind('<Configure>', self.resize)
+           self._canvas.bind('<Configure>', self.frame_width)
+
+       def frame_width(self, event):
+           canvas_width = event.width
+           self._canvas.itemconfig(self._window, width=canvas_width)
+
+       def resize(self, event=None):
+           self._canvas.configure(scrollregion=self._canvas.bbox('all'))
+
 class pingPacketWindow(object):
 
     def __init__(self,master,dict_host,textCanvas,network):
         self.top = Toplevel(master)
-        self.top.geometry('300x200')
+        self.top.geometry('400x150')
         self.text = textCanvas
         self.number = StringVar()
         self.net = network
@@ -862,11 +1325,14 @@ class pingPacketWindow(object):
         self.choosenNumber[0] = self.number.get()
 
     def openWindow(self):
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
         numbers = self.numbers
         hosts = self.hostnames
         self.number.trace("w",self.changeNumber)
         self.selectedhost1.trace("w",self.changeFirsthost)
         self.selectedhost2.trace("w",self.changeSecondhost)
+        labelTitle=Label(self.top,text='Choose hosts and number of exhanged packets',font=helv36)
+        labelTitle.place(x=5,y=10)
         dropDownMenu=OptionMenu(self.top,self.selectedhost1,*hosts)
         dropDownMenu.place(x=0,y=50)
         dropDownMenu1=OptionMenu(self.top,self.selectedhost2,*hosts)
@@ -881,9 +1347,9 @@ class pingPacketWindow(object):
         self.text.delete('1.0',END)
         h1=self.net.get(hosts[0])
         h2=self.net.get(hosts[1])
-        self.text.insert(END,'\nExchanged packets between ' + hosts[0] + ' and '  + hosts[1]+'\n'+'\n')
+        self.text.insert(END,'\nExchanged packets between ' + hosts[0] + ' and '  + hosts[1]+'\n'+'\n','modif1')
         result= h1.cmd('ping -c %s %s' % (number[0],h2.IP()))
-        self.text.insert(END,result)
+        self.text.insert(END,result,'police1')
         self.text.config(state='disabled')
 
     def okAction(self):
@@ -894,7 +1360,7 @@ class iperfWindow(object):
 
     def __init__(self,master,dict_host,textCanvas,network):
         self.top = Toplevel(master)
-        self.top.geometry('700x700')
+        self.top.geometry('850x500')
         self.text = textCanvas
         self.dict_hosts = dict_host
         self.hostnames=[]
@@ -1049,6 +1515,383 @@ class ifconfigWindow(object):
         self.ifconfigTest()
         self.top.destroy()
 
+class ping(object):
+
+    def __init__(self,master,dict_host,textCanvas,bouton):
+        self.bouton = bouton
+        self.bouton.config(command=self.finishPing)
+        self.top = Toplevel(master)
+        self.top.geometry('200x200')
+        self.text = textCanvas
+        self.dict_hosts=dict_host
+        self.hostnames=[]
+        self.names()
+        self.host1 = StringVar()
+        self.host1.set(self.hostnames[0])
+        self.host2 = StringVar()
+        self.host2.set(self.hostnames[0])
+        self.listhost = [self.hostnames[0],self.hostnames[0]]
+        self.process = None
+        self.choosehost()
+
+    def names(self):
+        for element in self.dict_hosts.keys():
+            self.hostnames.append(element)
+
+    def changehost1(self,*args):
+        self.listhost[0] = self.host1.get()
+
+    def changehost2(self,*args):
+        self.listhost[1]=self.host2.get()
+
+    def choosehost(self):
+        helv36 = Font(family='Helvetica', size=10, weight='bold')
+        hosts = self.hostnames
+        label = Label(self.top,text='Choose a host',font=helv36)
+        label.pack()
+
+        self.host1.trace("w",self.changehost1)
+        dropDownMenu=OptionMenu(self.top,self.host1,*hosts)
+        dropDownMenu.place(x='30',y='60')
+
+        self.host2.trace("w",self.changehost2)
+        dropDownMenu1=OptionMenu(self.top,self.host2,*hosts)
+        dropDownMenu1.place(x='110',y='60')
+
+        bouton = Button(self.top,text='OK',command = self.threadPing)
+        bouton.place(x='78',y='110')
+
+    def okAction(self):
+        self.top.destroy()
+        host1 = self.dict_hosts[self.listhost[0]]
+        host2 = self.dict_hosts[self.listhost[1]]
+        popens = {}
+        popens[host1] = host1.popen('ping', host2.IP())
+        self.process = popens[host1]
+        self.text.config(state='normal')
+        self.text.delete('1.0',END)
+        self.text.insert(INSERT,'Ping between ' + self.listhost[0] + ' and ' + self.listhost[1] + '\n' +'\n','modif1')
+        for host, line in pmonitor( popens,timeoutms =500 ):
+            self.text.insert(INSERT,line,'police1')
+
+    def threadPing(self):
+        r = threading.Thread(target=self.okAction)
+        r.start()
+
+    def finishPing(self):
+        #self.process.terminate()
+        self.process.kill()
+        #self.r.stop()
+
+class QOSwindow(object):
+
+    def __init__(self,master,dict_switch,dict_host,textqos,canvasqos,textcommand,texte):
+        self.canvas = canvasqos
+        self.textecommand = textcommand
+        self.textrule = texte
+        self.texte = textqos
+        self.dict_hosts = dict_host
+        self.placeButton()
+        self.hostnames = []
+        self.sethostnames()
+        self.host = StringVar()
+        self.host.set(self.hostnames[0])
+        self.listhost=[self.hostnames[0]]
+        self.top = Toplevel(master)
+        self.top.geometry('300x300')
+        self.dict_switches = dict_switch
+        self.switches=[]
+        self.switchesNames()
+        self.switch = StringVar()
+        self.switch.set(self.switches[0])
+        self.listswitch=[self.switches[0]]
+        self.protocol = StringVar()
+        self.protocol.set('OpenFlow13')
+        self.listEntry={}
+        #self.chooseswitch()
+        self.protocol1 = StringVar()
+        self.protocol1.set('TCP')
+        self.listprotocol = ['TCP']
+        self.number=StringVar()
+        self.number.set('1')
+        self.listnumber=['1']
+        #self.chooseswitch()
+        self.resultswitch={}
+        self.resultParams = {}
+        self.process = None
+        self.terminatedqos = True
+        #self.openWindow()
+        self.chooseswitch()
+
+    def changeNumber(self,*args):
+        self.listnumber[0]=self.number.get()
+
+    def sethostnames(self):
+        for element in self.dict_hosts.keys():
+            self.hostnames.append(element)
+
+    def changehost(self,*args):
+        self.listhost[0]=self.host.get()
+
+    def changeProtocol(self,*args):
+        self.listprotocol[0]=self.protocol1.get()
+
+    def switchesNames(self):
+        for element in self.dict_switches.keys():
+            self.switches.append(element)
+
+    def changeswitch(self,*args):
+        self.listswitch[0]=self.switch.get()
+        #print(self.listswitch[0])
+
+    def placeButton(self):
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        bouton_clean= Button(self.canvas,text='Clean up',font=helv36,command=self.cleanup)
+        bouton_clean.place(x=5,y=600)
+
+    def chooseswitch(self):
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        switches = self.switches
+        listprotocol = [self.protocol.get()]
+
+        labelTitle = Label(self.top,text='OVSDB address',font=helv36)
+        labelTitle.place(x=115,y=10)
+
+        label = Label(self.top,text='Choose a switch',font=helv36)
+        label.place(x='10',y='40')
+
+        self.switch.trace("w",self.changeswitch)
+        dropDownMenu=OptionMenu(self.top,self.switch,*switches)
+        dropDownMenu.place(x='10',y='70')
+
+        labelProtocol = Label(self.top,text='Choosen protocol',font=helv36)
+        labelProtocol.place(x='160',y='40')
+        dropDownMenu1 = OptionMenu(self.top,self.protocol,*listprotocol)
+        dropDownMenu1.place(x='160',y='70')
+
+        labelPort = Label(self.top,text='Choose a port',font=helv36)
+        labelPort.place(x='10',y='110')
+        entryPort = Entry(self.top,width=10)
+        entryPort.place(x='10',y='140')
+        self.listEntry['port']=entryPort
+
+        bouton = Button(self.top,text='OK',command = self.okAction3)
+        bouton.place(x='10',y='170')
+
+    def defaultDpid(self,name):
+        nums = re.findall( r'\d+', name )
+        if nums:
+            dpid = hex( int( nums[ 0 ] ) )[ 2: ]
+            return '0' * ( 16 - len( dpid ) ) + dpid
+
+    def okAction(self):
+        # ovs-vsctl set Bridge s1 protocols=OpenFlow13
+        # ovs-vsctl set-manager ptcp:6632
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        self.resultswitch['port']=self.listEntry['port'].get()
+        node = self.dict_switches[self.listswitch[0]]
+        self.texte.insert(INSERT,node.cmd('ovs-vsctl set Bridge ' + self.listswitch[0] + ' protocols=OpenFlow13'))
+        self.texte.insert(INSERT,node.cmd('ovs-vsctl set-manager ptcp:' + self.listEntry['port'].get()))
+        myoutput = open('qos.txt','w+')
+        self.top.destroy()
+        bouton_ovsdb = Button(self.canvas,text='OVSDB',width=9,height=2,bg='white',font=helv36,command = self.ovsdb)
+        bouton_ovsdb.place(x='5',y='70')
+        #ryu-manager ryu.app.rest_qos ryu.app.qos_simple_switch_13 ryu.app.rest_conf_switch
+        self.process = subprocess.Popen(["ryu-manager","ryu.app.rest_qos","ryu.app.qos_simple_switch_13","ryu.app.rest_conf_switch"], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        y = select.poll()
+        y.register(myoutput,select.POLLIN)
+        file = open('qos.txt','r')
+        #while True:
+        while self.terminatedqos:
+            if y.poll(1):
+               self.texte.insert(INSERT,file.readline(),'color')
+            else:
+                time.sleep(1)
+
+    def okAction3(self):
+        r = threading.Thread(target=self.okAction)
+        r.start()
+
+    def ovsdb(self):
+        #curl -X PUT -d '"tcp:127.0.0.1:6632"' http://localhost:8080/v1.0/conf/switches/0000000000000001/ovsdb_addr
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        myoutput = open('ovsdb.txt','w+')
+        url = 'tcp:127.0.0.1:' + self.resultswitch['port']
+        url = json.dumps(url)
+        url1 = 'http://localhost:8080/v1.0/conf/switches/' + self.defaultDpid(self.listswitch[0]) + '/ovsdb_addr'
+        p = Popen(["curl",'-X','PUT','-d',url,url1], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        output, errors = p.communicate()
+        time.sleep(5)
+
+        bouton = Button(self.canvas,text='parameters',width=9,height=2,bg='white',font=helv36,command=self.setParameters)
+        bouton.place(x='5',y='130')
+
+    def setParameters(self):
+        #curl -X POST -d '{"port_name": "s1-eth1", "type": "linux-htb", "max_rate": "1000000", "queues": [{"max_rate": "500000"}, {"min_rate": "800000"}]}' http://localhost:8080/qos/queue/0000000000000001
+        root = Toplevel()
+        root.geometry('300x300')
+
+        #title
+        label_title = Label(root,text='Setting parameters for both queues')
+        label_title.place(x=5,y=10)
+
+        #Port name
+        label = Label(root,text='Port name')
+        label.place(x=5,y=40)
+        entry_portname = Entry(root,width=10)
+        entry_portname.place(x=150,y=40)
+        self.listEntry['portName']= entry_portname
+
+        #Type
+        labelType = Label(root,text='Type')
+        labelType.place(x=5,y=70)
+        entryType = Entry(root,width=10)
+        entryType.place(x=150,y=70)
+        self.listEntry['type']=entryType
+
+        #max rate
+        label_max_rate = Label(root,text='max rate')
+        label_max_rate.place(x=5,y=100)
+        entry_max_rate = Entry(root,width=10)
+        entry_max_rate.place(x=150,y=100)
+        self.listEntry['maxRate']=entry_max_rate
+
+        #queue max rate
+        label_queue_max_rate = Label(root,text='queue max rate')
+        label_queue_max_rate.place(x=5,y=130)
+        entry_queue_max_rate = Entry(root,width=10)
+        entry_queue_max_rate.place(x=150,y=130)
+        self.listEntry['queuemaxrate']=entry_queue_max_rate
+
+        #queue min rate
+        label_queue_min_rate = Label(root,text='queue min rate')
+        label_queue_min_rate.place(x=5,y=160)
+        entry_queue_min_rate = Entry(root,width=10)
+        entry_queue_min_rate.place(x=150,y=160)
+        self.listEntry['queueminrate']=entry_queue_min_rate
+
+        bouton= Button(root,text='OK',command=partial(self.setqueues_param,root))
+        bouton.place(x=5,y=190)
+
+    def setqueues_param(self,root):
+        #curl -X POST -d '{"port_name": "s1-eth1", "type": "linux-htb", "max_rate": "1000000", "queues": [{"max_rate": "500000"}, {"min_rate": "800000"}]}' http://localhost:8080/qos/queue/0000000000000001
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        url = 'http://localhost:8080/qos/queue/'+ self.defaultDpid(self.listswitch[0])
+        dict={}
+        dictmaxRate={}
+        dictminRate={}
+        dictmaxRate['max_rate']=self.listEntry['queuemaxrate'].get()
+        dictminRate['min_rate']=self.listEntry['queueminrate'].get()
+        dict['port_name']=self.listEntry['portName'].get()
+        dict['type']=self.listEntry['type'].get()
+        dict['max_rate']=self.listEntry['maxRate'].get()
+        dict['queues']=[dictmaxRate,dictminRate]
+        dict = json.dumps(dict)
+        #print(dict)
+        myoutput = open('parametres.txt','w+')
+        p = Popen(["curl",'-X','POST','-d',dict,url], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        output, errors = p.communicate()
+        time.sleep(5)
+        file = open('parametres.txt','r')
+        lines = file.readlines()
+        self.textecommand.insert(INSERT,'\n' + "Queues's parameters : "+ '\n','big')
+        for line in lines[3:]:
+            self.textecommand.insert(INSERT,line,'color')
+        bouton = Button(self.canvas,text="queue's flow",width=9,height=2,bg='white',font=helv36,command=self.openWindow)
+        bouton.place(x='5',y='200')
+        root.destroy()
+
+    def openWindow(self):
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        root = Toplevel()
+        root.geometry('380x300')
+        protocols = ['TCP','UDP','ICMP']
+        numbers=['1','2']
+        hosts = self.hostnames
+        labelTitle = Label(root,text='Launch a flow on a queue',font=helv36)
+        labelTitle.place(x=5,y=10)
+
+        label = Label(root,text='Choose a host',font=helv36)
+        label.place(x=5,y=50)
+        self.host.trace("w",self.changehost)
+        dropDownMenu=OptionMenu(root,self.host,*hosts)
+        dropDownMenu.place(x=170,y=50)
+
+        labelProtocol = Label(root,text='Choose a protocol',font=helv36)
+        labelProtocol.place(x=5,y=80)
+        self.protocol1.trace("w",self.changeProtocol)
+        dropDownMenu1=OptionMenu(root,self.protocol1,*protocols)
+        dropDownMenu1.place(x=170,y=80)
+
+        label_tpdst = Label(root,text='tp_dst',font=helv36)
+        label_tpdst.place(x=5,y=110)
+        entry_tp_dst = Entry(root,width=10)
+        entry_tp_dst.place(x=170,y=110)
+        self.listEntry['tp_dst'] = entry_tp_dst
+
+        label_queue = Label(root,text='Choose a queue number',font=helv36)
+        label_queue.place(x=5,y=140)
+        self.number.trace("w",self.changeNumber)
+        dropdownmenu2=OptionMenu(root,self.number,*numbers)
+        dropdownmenu2.place(x=185,y=140)
+
+        bouton = Button(root,text='OK',font=helv36,command = partial(self.createFlow,root))
+        bouton.place(x=5,y=170)
+
+    def createFlow(self,root):
+        #curl -X POST -d '{"match": {"nw_dst": "10.0.0.1", "nw_proto": "UDP", "tp_dst": "5002"}, "actions":{"queue": "1"}}' http://localhost:8080/qos/rules/0000000000000001
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        url = 'http://localhost:8080/qos/rules/' + self.defaultDpid(self.listswitch[0])
+
+        dict={}
+        dict1={}
+        dict2={}
+        node = self.dict_hosts[self.listhost[0]]
+        dict1['nw_dst']=node.IP()
+        dict1['nw_proto']=self.listprotocol[0]
+        dict1['tp_dst']=self.listEntry['tp_dst'].get()
+
+        dict['match']=dict1
+
+        dict2['queue']=self.listnumber[0]
+        dict['actions']=dict2
+        #print(dict)
+        dict = json.dumps(dict)
+        myoutput = open('flow.txt','w+')
+        p = Popen(["curl",'-X','POST','-d',dict,url], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        output, errors = p.communicate()
+
+        time.sleep(4)
+        file = open('flow.txt','r')
+        lines = file.readlines()
+        self.textecommand.insert(INSERT,'\n'+'\n'+'QOS added :'+'\n','big')
+        for line in lines[3:]:
+            self.textecommand.insert(INSERT,line,'color')
+        root.destroy()
+        bouton = Button(self.canvas,text='QOS rules',width=9,height=2,bg='white',font=helv36,command=self.rules)
+        bouton.place(x='5',y='270')
+
+    def cleanup(self):
+        #self.process.terminate()
+        self.process.kill()
+        self.terminatedqos=False
+        self.textecommand.delete('1.0',END)
+        self.textrule.delete('1.0',END)
+        self.texte.delete('1.0',END)
+
+    def rules(self):
+        url = 'http://localhost:8080/qos/rules/'+self.defaultDpid(self.listswitch[0])
+        myoutput = open('qosrules.txt','w+')
+        p = Popen(["curl",'-X','GET',url], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        output, errors = p.communicate()
+
+        time.sleep(4)
+        file = open('qosrules.txt','r')
+        lines = file.readlines()
+        self.textrule.insert(INSERT,'QOS rules : ' +'\n','big')
+        for line in lines[3:]:
+            self.textrule.insert(INSERT,line,'color')
+
 class pingWindow(object):
 
     def __init__(self,master,dict_host,textCanvas): #self.name_host , textcanvas
@@ -1159,7 +2002,7 @@ class ipaWindow(object):
     def __init__(self, master,dict_switches,dict_hosts,textCanvas):
         self.text = textCanvas
         self.top=Toplevel(master)
-        self.top.geometry('200x200')
+        self.top.geometry('200x100')
         self.dict_switch = dict_switches
         self.dict_host = dict_hosts
         self.listOfNodes = None
@@ -1183,6 +2026,9 @@ class ipaWindow(object):
         self.selectedNode[0]=self.node.get()
 
     def chooseNode(self):
+        helv36 = Font(family='Helvetica',size=11,weight='bold')
+        labelTitle=Label(self.top,text='Choose a node',font=helv36)
+        labelTitle.place(x=20,y=10)
         list_switches = self.dict_switch_keys()
         list_hosts = self.dict_host_keys()
         self.listOfNodes = list_switches + list_hosts
@@ -1191,25 +2037,25 @@ class ipaWindow(object):
         self.selectedNode = [self.listOfNodes[0]]
         listNodes = self.listOfNodes
         dropdownmenu = OptionMenu(self.top,self.node,*listNodes)
-        dropdownmenu.place(x=20,y=30)
+        dropdownmenu.place(x=20,y=40)
         bouton=Button(self.top,text='OK',command=partial(self.ipa,self.selectedNode))
-        bouton.place(x=80,y=30)
+        bouton.place(x=80,y=40)
 
     def ipa(self,names):
         self.top.destroy()
         self.text.config(state="normal")
         self.text.delete('1.0',END)
-
+        self.text.insert(END,'Command ipa for node ' + names[0] +'\n'+'\n','modif1')
         if names[0] in self.dict_switch.keys() :
             node = self.dict_switch[names[0]]
             links, _err, _result = node.pexec( 'ip link show' )
-            self.text.insert(END,links)
+            self.text.insert(END,links,'police1')
             self.text.config(state='disabled')
             return
         elif names[0] in self.dict_host.keys():
             node = self.dict_host[names[0]]
             links, _err, _result = node.pexec('ip link show')
-            self.text.insert(END,links)
+            self.text.insert(END,links,'police1')
             self.text.config(state='disabled')
 
 
@@ -1217,7 +2063,7 @@ class serverOrClient(object):
 
     def __init__(self,master,dict_host):
         self.top = Toplevel(master)
-        self.top.geometry('1000x1000')
+        self.top.geometry('700x500')
         self.clients=[]
         self.servers=[]
         self.hostnames=[]
@@ -1229,8 +2075,6 @@ class serverOrClient(object):
         self.entriesClient = []
         self.listProtocol = []
         self.protocols = []
-        self.canvas = Canvas(self.top,width=1000,height=1000,bg='snow')
-        self.canvas.grid(row=0, column=0)
         self.dict_hosts = dict_host
         self.variables_server = []
         self.clientserver = []
@@ -1302,16 +2146,22 @@ class serverOrClient(object):
             self.protocols.append({'serverName': self.listNameservers[i] , 'protocol' : variable})
 
     def placetext(self,top):
-
-        canvas = Canvas(top,width=100,height=100)
-        canvas.place(x='10',y='10')
-        texte = Text(canvas)
+        helv36 = Font(family='Helvetica', size=15, weight='bold')
+        canvasRoot = Canvas(top,bg='slateGray1')
+        canvasRoot.pack(expand=True,fill='both')
+        label = Label(canvasRoot,text='Client Output',font=helv36,bg='slateGray1')
+        label.pack()
+        canvas = Canvas(canvasRoot,width=1000,height=1000,bg='snow')
+        canvas.pack()
+        texte = Text(canvas,width=90,height=50)
+        texte.tag_configure('big',font=('Helvetica',11,'bold'),foreground='RoyalBlue1',underline=1)
+        texte.tag_configure('color',font=('Helvetica',11,'bold'))
         scroll = Scrollbar(canvas,command=texte.yview)
         texte.configure(yscrollcommand=scroll.set)
         texte.config(state="normal")
         texte.pack(side=LEFT)
         scroll.pack(side=RIGHT,fill=Y)
-        return texte
+        return [texte,label]
 
     def changeProtocol(self,serverName,*args):
         #pour changer le protocole correspondant
@@ -1325,19 +2175,22 @@ class serverOrClient(object):
                 dict['protocolvalue'] = varControle.get()
                 break
 
-        print(self.listProtocol)
-
     def properties(self,serverName):
-        root = Toplevel()
-        root.geometry('500x800')
 
+        # Root for properties
+        root = Toplevel()
+        root.geometry('500x500')
+
+        frame = ScrolledFrame(root)
+        frame.pack(expand=True,fill='both')
+        frame.inner.config(bg='gray85')
         rootClients = []
         dicts = []
 
         rootOutput = Toplevel()
-        rootOutput.geometry('600x600')
-        texte = self.placetext(rootOutput)
-
+        rootOutput.geometry('950x500')
+        [texte,label] = self.placetext(rootOutput)
+        label.config(text='Server output')
         for element in self.liste :
             if(element['serverName'] == serverName):
                 dicts.append(element)
@@ -1351,54 +2204,55 @@ class serverOrClient(object):
         helv36 = Font(family='Helvetica', size=10, weight='bold')
 
         #labelProperties=Label(dicts[0]['infos'][0],text='Server Properties' + ' for ' + serverName,font=helv36)
-        labelProperties=Label(root,text='Server Properties' + ' for ' + serverName,font=helv36)
+        labelProperties=Label(frame.inner,text='Server Properties' + ' for ' + serverName,font=helv36)
         labelProperties.place(x=10,y=10)
 
-        labelInterval=Label(root,text="Interval to display a report on bw (-i)")
+        labelInterval=Label(frame.inner,text="Interval to display a report on bw (-i)")
         labelInterval.place(x=10,y=65)
-        entryInterval=Entry(root,width=10)
+        entryInterval=Entry(frame.inner,width=10)
         entryInterval.place(x=260,y=65)
 
-        labelPort = Label(root,text="Port")
+        labelPort = Label(frame.inner,text="Port")
         labelPort.place(x=10,y=95)
-        entryPort=Entry(root,width=10)
+        entryPort=Entry(frame.inner,width=10)
         entryPort.place(x=260,y=95)
 
-        labelProtocol = Label(root,text="Protocol")
+        labelProtocol = Label(frame.inner,text="Protocol")
         labelProtocol.place(x=10,y=125)
         protocol.trace("w",partial(self.changeProtocol,serverName))
-        dropDownMenu=OptionMenu(root,protocol,*listProtocol)
+        dropDownMenu=OptionMenu(frame.inner,protocol,*listProtocol)
         dropDownMenu.place(x=260,y=125)
 
-        labelFilename = Label(root,text="Choose a file name")
+        labelFilename = Label(frame.inner,text="Choose a file name")
         labelFilename.place(x=10,y=155)
-        entryFilename=Entry(root,width=10)
+        entryFilename=Entry(frame.inner,width=10)
         entryFilename.place(x=260,y=155)
 
         self.entries_server.append({'server': serverName , 'intervalEntry': entryInterval , 'portEntry' : entryPort , 'fileEntry' : entryFilename})
 
         ord = 215
         for i in range(0,len(dicts)): # nombre de clients
-            labelClient=Label(root, text = 'Client ' + dicts[i]['infos'][3] + " 's Properties",font=helv36)
+            labelClient=Label(frame.inner, text = 'Client ' + dicts[i]['infos'][3] + " 's Properties",font=helv36)
             labelClient.place(x=10,y=ord)
 
-            labelBandwidth = Label(root,text='Bandwidth')
+            labelBandwidth = Label(frame.inner,text='Bandwidth')
             labelBandwidth.place(x=10,y=ord+60)
-            entryBandwidth=Entry(root,width=10)
+            entryBandwidth=Entry(frame.inner,width=10)
             entryBandwidth.place(x=120,y=ord+60)
 
-            labelTest = Label(root,text='Test duration')
+            labelTest = Label(frame.inner,text='Test duration')
             labelTest.place(x=10,y=ord+90)
-            entryTest=Entry(root,width=10)
+            entryTest=Entry(frame.inner,width=10)
             entryTest.place(x=120,y=ord+90)
             dictClient = {'serverName' : dicts[i]['serverName'] , 'clientName' : dicts[i]['infos'][3] , 'clientEntries' : [entryBandwidth,entryTest]}
             self.entriesClient.append(dictClient)
-            bouton = Button(root,text='Test iperf',command = partial(self.iperf,texte,[ self.dict_hosts[ dicts[i]['infos'][3] ] , self.dict_hosts[serverName] ], protocol , entryBandwidth , entryTest , entryPort , entryInterval , entryFilename ) )
+            bouton = Button(frame.inner,text='Test iperf',command = partial(self.iperf,texte,[ self.dict_hosts[ dicts[i]['infos'][3] ] , self.dict_hosts[serverName] ], protocol , entryBandwidth , entryTest , entryPort , entryInterval , entryFilename ) )
             bouton.place(x=10,y=ord+120)
             ord += 150
 
-        bouton = Button(root,text='Finish',command = lambda : root.destroy())
+        bouton = Button(frame.inner,text='Finish',command = lambda : root.destroy())
         bouton.place(x=10,y=ord+30)
+        frame.inner.config(height=ord+70)
 
     def iperfwindow(self):
         setLogLevel('info')
@@ -1408,6 +2262,8 @@ class serverOrClient(object):
         self.plots() # met à jour self.courbes
         self.setvariables()
         hostnames = self.hostnames
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        liste=[]
 
         abscisse = 10
         ordonnee = 10
@@ -1415,27 +2271,32 @@ class serverOrClient(object):
         abscisse_server = 10
         ordonnees_server = 10
 
+        frame = ScrolledFrame(self.top)
+        frame.pack(expand=True,fill='both')
+        frame.inner.config(bg='gray85')
+
         for i in range (0,len(self.dict_hosts)):
-            label_server = Label(self.canvas,text='server',font=("bold",10))
+            label_server = Label(frame.inner,text='server',font=helv36)
             label_server.place(x=abscisse_server,y=ordonnees_server)
             self.servers[i].trace("w",partial(self.changeserver,i))
-            dropDownMenu=OptionMenu(self.canvas,self.servers[i],*hostnames)
+            dropDownMenu=OptionMenu(frame.inner,self.servers[i],*hostnames)
             dropDownMenu.place(x=abscisse_server,y=ordonnees_server+30)
-            self.canvas.create_line((0,ordonnees_server+70),(1500,ordonnees_server+70))
             ordonnees_server += 80
 
-        for j in range (0,len(self.dict_hosts)): #On passe à un autre serveur
+        for j in range (0,len(self.dict_hosts)):
             for i in range (0,len(self.dict_hosts)):
-                label_client = Label(self.canvas,text=hostnames[i],font=("bold",10))
+                label_client = Label(frame.inner,text=hostnames[i],font=helv36)
                 label_client.place(x=abscisse+100,y=ordonnee)
-                bouton = Checkbutton(self.canvas,variable=self.clients[j][i])
+                bouton = Checkbutton(frame.inner,variable=self.clients[j][i])
                 bouton.place(x=abscisse+180,y=ordonnee)
                 abscisse += 160
+                liste.append(abscisse)
             ordonnee += 80
             abscisse = 10
 
-        bouton_ok=Button(self.top,text='OK',width=10,command=self.okAction)
-        bouton_ok.place(x=300,y=300)
+        bouton_ok=Button(frame.inner,text='OK',width=10,command=self.okAction)
+        bouton_ok.place(x=5,y=ordonnees_server+20)
+        frame.inner.config(height=ordonnees_server+80)
 
     def okAction(self):
         self.create_dict()
@@ -1454,12 +2315,13 @@ class serverOrClient(object):
         #rootserver = Toplevel()
         #rootserver.geometry('600x600')
         rootclient = Toplevel()
-        rootclient.geometry('600x600')
+        #rootclient.geometry('650x550')
+        rootclient.geometry('950x500')
         #textserver = self.placetext(rootserver)
-        textclient = self.placetext(rootclient)
+        [textclient,label] = self.placetext(rootclient)
         client, server = hosts
         [clientName,serverName] = [self.find_key(client,self.dict_hosts),self.find_key(server,self.dict_hosts)]
-        textclient.insert(INSERT,'*** Iperf: testing '+str(l4Type.get())+' bandwidth between '+str(client.name)+ ' and '+str(server.name)+ '\n')
+        textclient.insert(INSERT,'*** Iperf: testing '+str(l4Type.get())+' bandwidth between '+str(client.name)+ ' and '+str(server.name)+ '\n','big')
         server.cmd( 'killall -9 iperf' )
         port1 = port.get()
         port1 = int(port1)
@@ -1473,7 +2335,7 @@ class serverOrClient(object):
              iperfArgs += '-u '
              bwArgs = '-b ' + udpBw.get() + ' '
         elif l4Type.get() != 'TCP':
-              textclient.insert(INSERT,'Unexpected l4 type : ' + l4Type.get())
+              textclient.insert(INSERT,'Unexpected l4 type : ' + l4Type.get(),'color')
               #textclient.config(state='disabled')
               return
         server.sendCmd(iperfArgs + '-s')
@@ -1483,17 +2345,19 @@ class serverOrClient(object):
              iperfArgs1 += '-u '
              bwArgs1 = '-b ' + udpBw.get() + ' '
         elif l4Type.get() != 'TCP':
-              textclient.insert(INSERT,'Unexpected l4 type : ' + l4Type.get())
+              textclient.insert(INSERT,'Unexpected l4 type : ' + l4Type.get(),'color')
               #textclient.config(state='disabled')
               return
 
         if l4Type.get() == 'TCP':
             if not waitListening( client, server.IP(), port1):
-                textclient.insert(INSERT,'Could not connect to iperf on port ' + port.get())
+                textclient.insert(INSERT,'Could not connect to iperf on port ' + port.get(),'color')
                 return
         seconds1 = int(seconds.get())
         cliout = client.cmd( iperfArgs1 + '-t %d -c ' % seconds1 + server.IP() + ' ' + bwArgs1)
-        textclient.insert(INSERT,'Client output: ' + cliout + '\n')
+        #textclient.insert(INSERT,'Client output: ' + cliout + '\n','big')
+        textclient.insert(INSERT,'Client output: ' +'\n','big')
+        textclient.insert(INSERT,cliout + '\n','color')
 
         servout = ''
         count = 2 if l4Type.get() == 'TCP' else 1
@@ -1501,7 +2365,9 @@ class serverOrClient(object):
             servout += server.monitor( timeoutms=5000 )
         server.sendInt()
         servout += server.waitOutput()
-        textserver.insert(INSERT,'Server output: ' + servout + '\n')
+        #textserver.insert(INSERT,'Server output: ' + servout + '\n','big')
+        textserver.insert(INSERT,'Server output: ' + '\n','big')
+        textserver.insert(INSERT,servout + '\n','color')
         fileName = open(fichier.get(),'w')
         fileName.write(servout)
         fileName.close()
@@ -1586,15 +2452,45 @@ class Interface():
         self.linkTarget=None
         self.selectedNode=None
         self.selectedLink=None
-        self.nb_widget_canevas=0
+        self.processFirewall = None
+        self.boutonFinish = None
+
+        self.portNumber1 = StringVar()
+        self.portNumber1.set('1')
+        self.portNumber2=StringVar()
+        self.portNumber2.set('1')
+
+        self.bridgedict = {}
+        self.choosenBridge=['bridge']
+
+        self.bridge = StringVar()
+
+        self.outputs=['1']
+
+        self.number2=StringVar()
+        self.number2.set('1')
+        self.number3=StringVar()
+        self.number3.set('1')
+
+        self.choosenhost=StringVar()
+        self.choosenhost.set('h1')
+
+        self.choosenhost1=StringVar()
+        self.choosenhost1.set('h1')
+
+        self.choosenhosts = ['h1','h1']
+        self.valuearp=IntVar()
+        #self.nb_widget_canevas=0
         self.preferences={"dpctl": "","ipBase": "10.0.0.0/8","netflow": {"nflowAddId":0,"nflowTarget":"","nflowTimeout": "600"},"openFlowVersions": {"ovsOf10":1,"ovsOf11":0,"ovsOf12":0,"ovsOf13":0},"sflow" : {"sflowHeader": "128","sflowPolling": "30","sflowSampling": "400","sflowTarget": ""},"startCLI":0,"switchType": "ovs","terminalType": "xterm"}
         self.list_buttons={}
         self.buttons_canevas={}
         self.links={}
+        self.champs={}
         self.performances = ['Links','Iperf','Ping','Ifconfig','ip -a']
         self.itemToName={}
         self.liens=[]
-        self.name_switch=[]
+        #self.name_switch=[]
+        self.terminatedstp=True # to finish the thread
         self.nameswitch={}
         self.name_host=[]
         self.names=[]
@@ -1604,28 +2500,30 @@ class Interface():
         self.hostOptions={}
         self.legacySwitchOptions={}
         self.legacyRouterOptions={}
-        self.controllerOptions={}
         self.coordonnees={"i0":0,"j0":0,"i1":0,"j1":0}
         self.create_menu_bar(window)
+        self.controllerOptions={}
         self.widgetToItem={}
         self.itemToWidget={}
-        self.source={}
+        #self.source={}
         self.hosts=[]
         self.nameToItem={}
         self.name_host={}
-        self.link_object={}
+        #self.link_object={}
+        self.listPort1=['1']
+        self.listPort2=['1']
         self.canvas=self.create_canvas(window)
         self.elements=['Switch','Host','Link','LegacyRouter','LegacySwitch','Controller']
         self.nodePref = {'Switch':'s','Host':'h','LegacyRouter':'r','LegacySwitch':'s','Controller':'c'}
         self.images=self.netImages()
-        #self.create_buttons(window)
+        s = ttk.Style()
+        s.configure('Frame1.TFrame',background='red')
+        s.configure('Frame2.TFrame',background='blue')
+        s.configure('Frame3.TFrame',background='snow')
+        s.configure('Frame4.TFrame',background='snow')
 
-        self.s = ttk.Style()
-        #self.s.configure('TFrame', background='yellow')
-
-        self.s.configure('Frame1.TFrame',background='red')
-        self.s.configure('Frame2.TFrame',background='blue')
-        self.s.configure('Frame3.TFrame',background='snow')
+        self.processSTP = None
+        self.terminatedFirewall = True
 
         self.systemOnglet = ttk.Notebook(window,width=1500)
         self.systemOnglet.place(x='0',y='0')
@@ -1637,36 +2535,201 @@ class Interface():
 
         self.secondOnglet = ttk.Frame(self.systemOnglet,width=1500,height=1500,style='Frame2.TFrame')
         self.secondOnglet.place(x='30',y='0')
-        self.systemOnglet.add(self.secondOnglet,text='Tests de performance')
+        self.systemOnglet.add(self.secondOnglet,text='Performances')
         self.canvas2 = self.create_canvas_second(self.secondOnglet)
 
         self.thirdOnglet = ttk.Frame(self.systemOnglet,width=1500,height=1500,style='Frame3.TFrame')
         self.thirdOnglet.place(x='60',y='0')
-        self.systemOnglet.add(self.thirdOnglet,text='Contrôleurs SDN')
+        self.systemOnglet.add(self.thirdOnglet,text='Firewall')
         self.canvas3 = self.create_canvas_third(self.thirdOnglet)
+        self.frame = ScrolledFrame(self.canvas3)
+        self.frame.pack(expand=True,fill='both')
+
+        self.fourthOnglet =  ttk.Frame(self.systemOnglet,width=1500,height=1500,style='Frame4.TFrame')
+        self.fourthOnglet.place(x='90',y='0')
+        self.systemOnglet.add(self.fourthOnglet,text='spanningTreeProtocol')
+        self.canvas4 = self.create_canvas_third(self.fourthOnglet)
+        self.frame4 = ScrolledFrame(self.canvas4)
+        self.frame4.pack(expand=True,fill='both')
+        [self.textstp,self.textRequest] = self.placetextstp()
+        [self.textFirewall,self.textcurl,self.textrules] = self.placeTextFirewall()
+
+        self.fifthOnglet = ttk.Frame(self.systemOnglet,width=1500,height=1500,style='Frame4.TFrame')
+        self.fifthOnglet.place(x='120',y='0')
+        self.systemOnglet.add(self.fifthOnglet,text='QOS')
+        self.canvas5 = self.create_canvas_third(self.fifthOnglet)
+        self.frame5 = ScrolledFrame(self.canvas5)
+        self.frame5.pack(expand=True,fill='both')
+        [self.textQOS,self.textcommand,self.texterule] = self.placeTextQOS()
 
         self.canvas_buttons=self.create_canvas_buttons(self.canvas1)
         self.create_buttons(self.canvas_buttons)
         self.canvas_performances = self.create_canvas_performances(self.canvas2)
         self.create_buttons_performances(self.canvas_performances)
 
+        #canvas controleur sdn
+        self.canvas_controleur = self.create_canvas_performances(self.thirdOnglet)
+        self.create_button_controleur(self.canvas_controleur)
+
+        self.canvas_stp = self.create_canvas_performances(self.fourthOnglet)
+        self.create_button_stp(self.canvas_stp)
+
+        #canvas qos
+        self.canvas_qos = self.create_canvas_performances(self.fifthOnglet)
+        self.placeButtonQOS()
+        self.setLabel(self.canvas2)
+
         # Canvas for text
         self.canvas_text = self.create_canvas_text(self.canvas2)
-        self.textCanvas = Text(self.canvas_text)
+        self.textCanvas = Text(self.canvas_text,width=135,height=30)
         self.placeText()
+        self.configuration()
 
     def selectedNode(self):
         return self.selectedNode
 
+    def configuration(self):
+        self.textstp.tag_configure('big',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        self.textstp.tag_configure('color',font=('Helvetica',11,'bold'))
+
+        self.textRequest.tag_configure('big',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        self.textRequest.tag_configure('color',font=('Helvetica',11,'bold'))
+
+        self.textQOS.tag_configure('big',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        self.textQOS.tag_configure('color',font=('Helvetica',11,'bold'))
+
+        self.textcommand.tag_configure('big',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        self.textcommand.tag_configure('color',font=('Helvetica',11,'bold'))
+
+        self.textcurl.tag_configure('big',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        self.textcurl.tag_configure('color',font=('Helvetica',11,'bold'))
+
+        self.textrules.tag_configure('big',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        self.textrules.tag_configure('color',font=('Helvetica',11,'bold'))
+
+        self.texterule.tag_configure('big',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        self.texterule.tag_configure('color',font=('Helvetica',11,'bold'))
+
+        self.textFirewall.tag_configure('big',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        self.textFirewall.tag_configure('color',font=('Helvetica',11,'bold'))
+
+        #self.textCanvas.tag_configure('big1',justify='center',font=('Helvetica',16,'bold'),foreground='RoyalBlue1',underline=1)
+        #self.textCanvas.tag_configure('color',font=('Helvetica',11,'bold'))
+
     def hostOptions(self):
         return self.hostOptions
 
-    def placeText (self):
+    def placetextstp(self):
+        # Launch stp application
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        label_stp = Label(self.frame4.inner,text='Launch stp algorithm',font=helv36,bg='slateGray1')
+        label_stp.pack()
+        canvas_stp=Canvas(self.frame4.inner,width=300,height=300,bg='slateGray1')
+        canvas_stp.pack()
+        texte = Text(canvas_stp,width=120,height=30)
+        scroll = Scrollbar(canvas_stp,command=texte.yview)
+        texte.configure(yscrollcommand=scroll.set)
+        texte.config(state="normal")
+        texte.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
+
+        # exchanged request
+        labelRequest = Label(self.frame4.inner,text="Exchanged packet at port eth2 of the choosen switch",font=helv36,bg='slateGray1')
+        labelRequest.pack()
+        canvasRequest=Canvas(self.frame4.inner,width=300,height=300,bg='slateGray1')
+        canvasRequest.pack()
+        texteRequest = Text(canvasRequest,width=120,height=30)
+        scrollRequest = Scrollbar(canvasRequest,command=texteRequest.yview)
+        texteRequest.configure(yscrollcommand=scrollRequest.set)
+        texteRequest.config(state="normal")
+        texteRequest.pack(side=LEFT)
+        scrollRequest.pack(side=RIGHT,fill=Y)
+        return [texte,texteRequest]
+
+    def placeTextQOS(self):
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        label_qos = Label(self.frame5.inner,text='Launch QOS',font=helv36,bg='slateGray1')
+        label_qos.pack()
+        canvas_qos=Canvas(self.frame5.inner,width=300,height=300,bg='slateGray1')
+        canvas_qos.pack()
+        texte = Text(canvas_qos,width=120,height=30)
+        scroll = Scrollbar(canvas_qos,command=texte.yview)
+        texte.configure(yscrollcommand=scroll.set)
+        texte.config(state="normal")
+        texte.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
+
+        label_curl = Label(self.frame5.inner,text="Output of curl's commands",font=helv36,bg='slateGray1')
+        label_curl.pack()
+        canvas_curl=Canvas(self.frame5.inner,width=300,height=300,bg='slateGray1')
+        canvas_curl.pack()
+        textecurl = Text(canvas_curl,width=120,height=30)
+        scrollcurl = Scrollbar(canvas_curl,command=textecurl.yview)
+        textecurl.configure(yscrollcommand=scrollcurl.set)
+        textecurl.config(state="normal")
+        textecurl.pack(side=LEFT)
+        scrollcurl.pack(side=RIGHT,fill=Y)
+
+        label_rule = Label(self.frame5.inner,text="Rules",font=helv36,bg='slateGray1')
+        label_rule.pack()
+        canvas_rule=Canvas(self.frame5.inner,width=300,height=300,bg='slateGray1')
+        canvas_rule.pack()
+        texterule = Text(canvas_rule,width=120,height=30)
+        scrollrule = Scrollbar(canvas_rule,command=texterule.yview)
+        texterule.configure(yscrollcommand=scrollrule.set)
+        texterule.config(state="normal")
+        texterule.pack(side=LEFT)
+        scrollrule.pack(side=RIGHT,fill=Y)
+
+        return [texte,textecurl,texterule]
+
+
+    def placeTextFirewall(self):
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        labelfirewall = Label(self.frame.inner,text="Launch rest Firewall application",font=helv36,bg='slateGray1')
+        labelfirewall.pack()
+        canvasfirewall = Canvas(self.frame.inner,width=300,height=300,bg='slateGray1')
+        canvasfirewall.pack()
+
+        texte = Text(canvasfirewall,width=120,height=30)
+
+        scroll = Scrollbar(canvasfirewall,command=texte.yview)
+        texte.configure(yscrollcommand=scroll.set)
+        texte.config(state="normal")
+        texte.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
+        labelcurl = Label(self.frame.inner,text="Activation of the firewall",font=helv36,bg='slateGray1')
+        labelcurl.pack()
+        canvascurl=Canvas(self.frame.inner,width=300,height=300,bg='slateGray1')
+        canvascurl.pack()
+
+        textecurl = Text(canvascurl,width=120,height=30)
+        scrollcurl = Scrollbar(canvascurl,command=textecurl.yview)
+        textecurl.configure(yscrollcommand=scrollcurl.set)
+        textecurl.config(state="normal")
+        textecurl.pack(side=LEFT)
+        scrollcurl.pack(side=RIGHT,fill=Y)
+
+        labelrules = Label(self.frame.inner,text="Rules",font=helv36,bg='slateGray1')
+        labelrules.pack()
+        canvasrules=Canvas(self.frame.inner,width=300,height=300,bg='slateGray1')
+        canvasrules.pack()
+        texterules = Text(canvasrules,width=120,height=30)
+        scrollrules = Scrollbar(canvasrules,command=texterules.yview)
+        texterules.configure(yscrollcommand=scrollrules.set)
+        texterules.config(state="normal")
+        texterules.pack(side=LEFT)
+        scrollrules.pack(side=RIGHT,fill=Y)
+
+        return [texte,textecurl,texterules]
+
+    def placeText(self):
         scroll = Scrollbar(self.canvas_text,command=self.textCanvas.yview)
         self.textCanvas.configure(yscrollcommand=scroll.set)
         self.textCanvas.config(state="normal")
         self.textCanvas.pack(side=LEFT)
         self.textCanvas.tag_configure('modif',justify='center',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
+        self.textCanvas.tag_configure('modif1',font=('Helvetica',12,'bold'),foreground='RoyalBlue1',underline=1)
         self.textCanvas.tag_configure('police',justify='center',font=('Helvetica',12,'bold'))
         self.textCanvas.tag_configure('police1',font=('Helvetica',12,'bold'))
         self.textCanvas.tag_configure('colour',font=('Helvetica',16,'bold'),spacing1=30)
@@ -1697,18 +2760,8 @@ class Interface():
         mainmenu.add_cascade(label='Run',menu=sousmenu3,font=helv36)
 
         sousmenu4=Menu(mainmenu,bg='white',tearoff=0)
-        #sousmenu4.add_command(label="Net",font=helv36,command=self.dumpNet)
-        #sousmenu4.add_command(label="Ifconfig",font=helv36,command=self.chooseNode)
-        #sousmenu4.add_command(label="Ping all hosts",font=helv36,command=self.pinghosts)
-        #sousmenu4.add_command(label="Ping pair",font=helv36,command=self.pingpair)
-        #sousmenu4.add_command(label="Iperf",font=helv36,command=self.iperf_test)
-        #sousmenu4.add_command(label="List of Nodes",font=helv36,command=self.listNodes)
-        sousmenu4.add_command(label="Nodes and links informations",font=helv36,command=self.node_info)
-        #sousmenu4.add_command(label="Ping packet",font=helv36,command=self.pingpacket)
-        sousmenu4.add_command(label='Preferences informations',font=helv36,command=self.preferencesinformations)
-        #sousmenu4.add_command(label='ip a',font=helv36,command=self.ipa)
-        #sousmenu4.add_command(label='links',font=helv36,command=self.linkinfo)
-        #sousmenu4.add_command(label='Choose server and client',font=helv36,command=self.chooseServerClient)
+        #sousmenu4.add_command(label="Nodes and links informations",font=helv36,command=self.node_info)
+        #sousmenu4.add_command(label='Preferences informations',font=helv36,command=self.preferencesinformations)
         mainmenu.add_cascade(label='Command',font=helv36,menu=sousmenu4)
 
         sousmenu5=Menu(mainmenu,bg='white',tearoff=0)
@@ -1718,7 +2771,10 @@ class Interface():
         window.config(menu=mainmenu)
 
     def create_canvas_text(self,window):
-        canvas = Canvas(window,width=500,height=500,bg='gray')
+        helv36 = Font(family='Helvetica', size=12, weight='bold')
+        label=Label(window,text='Performances',font=helv36,bg='slateGray1')
+        #label.pack()
+        canvas = Canvas(window,width=1200,height=1200,bg='gray')
         canvas.place(x='150',y='50')
         return canvas
 
@@ -1727,18 +2783,20 @@ class Interface():
         canvas.place(x='0',y='0')
         return canvas
 
+    def setLabel(self,window):
+        helv34 = Font(family='Helvetica', size=14, weight='bold')
+        label=Label(window,text='Performances',font=helv34,bg='slateGray1')
+        label.place(x=650,y=10)
+
     def create_canvas_performances(self,window):
         canvas = Canvas(window,width='120',height='1500',bg='white')
         canvas.place(x='0',y='0')
         return canvas
 
     def create_canvas_first(self,window):
-        #canvas = Canvas(window,width='1000',height='1000',bg='pink')
         canvas = Canvas(window,width='1500',height='1500',bg='SlateGray1')
         canvas.place(x='0',y='0')
         canvas.bind('<ButtonPress-1>',self.canvasHandle)
-        #canvas.bind('<B1-Motion>',self.dragCanevas)
-        #canvas.bind('<ButtonRelease-1>',self.dropCanevas)
         return canvas
 
     def create_canvas_second(self,window):
@@ -1750,13 +2808,14 @@ class Interface():
         #canvas.bind('<ButtonRelease-1>',self.dropCanevas)
         return canvas
 
+    def placeButtonQOS(self):
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        bouton = Button(self.canvas_qos,width=9,height=2,bg='white',text='Launch qos',font=helv36,command = self.qos)
+        bouton.place(x='5',y='10')
+
     def create_canvas_third(self,window):
-        #canvas = Canvas(window,width='1000',height='1000',bg='pink')
-        canvas = Canvas(window,width='1500',height='1500',bg='SlateGray1')
-        canvas.place(x='0',y='0')
-        ##canvas.bind('<ButtonPress-1>',self.canvasHandle)
-        #canvas.bind('<B1-Motion>',self.dragCanevas)
-        #canvas.bind('<ButtonRelease-1>',self.dropCanevas)
+        canvas = Canvas(window)
+        canvas.place(x=125,y=0)
         return canvas
 
     def create_canvas(self,window):
@@ -1768,52 +2827,6 @@ class Interface():
         #canvas.bind('<ButtonRelease-1>',self.dropCanevas)
         return canvas
 
-    def preferencesinformations(self):
-        root = Toplevel()
-        text2 = Text(root)
-        scroll = Scrollbar(root, command=text2.yview)
-        text2.configure(yscrollcommand=scroll.set)
-        text2.config(state="normal")
-        text2.tag_configure('big',justify='center',font=('Helvetica',16,'bold'),foreground='RoyalBlue1',underline=1)
-        text2.tag_configure('color',font=('Helvetica',16,'bold'),spacing1=30)
-        text2.insert(END,'\nPreferences\n','big')
-        if('dpctl' in self.preferences and len(self.preferences['dpctl'])>0):
-            text2.insert(END,"DPCTL: " + str(self.preferences['dpctl'])+'\n')
-        if('ipBase' in self.preferences and len(self.preferences['ipBase'])>0):
-            text2.insert(END,"ipBase: " + str(self.preferences['ipBase'])+'\n')
-        if(self.preferences['netflow']['nflowAddId']==0):
-            text2.insert(END,'nFlowAddID : ' + 'Not checked'+'\n')
-        else:
-            text2.insert(END,'nFlowAddID : ' + 'Checked'+'\n')
-        if(len(self.preferences['netflow']['nflowTarget'])>0):
-            text2.insert(END,'nFlowTarget : ' + self.preferences['netflow']['nflowTarget'] +'\n')
-        if(len(self.preferences['netflow']['nflowTimeout'])>0):
-            text2.insert(END,'nFlowTimeout : ' + self.preferences['netflow']['nflowTimeout'] +'\n')
-        if(len(self.preferences['sflow']['sflowHeader'])>0):
-            text2.insert(END,'sflowHeader: ' + self.preferences['sflow']['sflowHeader'] +'\n')
-        if(len(self.preferences['sflow']['sflowPolling'])>0):
-            text2.insert(END,'sflowPolling: ' + self.preferences['sflow']['sflowPolling'] +'\n')
-        if(len(self.preferences['sflow']['sflowSampling'])>0):
-            text2.insert(END,'sflowSampling: ' + self.preferences['sflow']['sflowSampling'] +'\n')
-        if(len(self.preferences['sflow']['sflowTarget'])>0):
-            text2.insert(END,'sflowTarget: ' + self.preferences['sflow']['sflowTarget'] +'\n')
-        if(self.preferences['startCLI']==0):
-            text2.insert(END,'startCLI: ' + 'Not Checked' +'\n')
-        else:
-            text2.insert(END,'startCLI: ' + 'Checked' +'\n')
-        if(len(self.preferences['switchType'])>0):
-            text2.insert(END,'switchType: ' + self.preferences['switchType'] +'\n')
-        if(len(self.preferences['terminalType'])>0):
-            text2.insert(END,'terminalType: ' + self.preferences['terminalType'] +'\n')
-        for cle,valeur in self.preferences['openFlowVersions'].items():
-            if (valeur == 1) :
-                text2.insert(END,cle + ' : ' + 'Checked'+'\n')
-            else:
-                text2.insert(END,cle + ' : ' + 'Not checked' + '\n')
-        text2.config(state='disabled')
-        text2.pack(side=LEFT)
-        scroll.pack(side=RIGHT,fill=Y)
-
     def listNodes(self):
         self.textCanvas.config(state='normal')
         self.textCanvas.delete('1.0',END)
@@ -1821,7 +2834,6 @@ class Interface():
         for i in range(0,len(self.names)):
             self.textCanvas.insert( END , self.names[i] + ' ','colour')
         self.textCanvas.config(state='disabled')
-
 
     def pinghosts(self,hosts=None,timeout=None ):
         self.textCanvas.config(state='normal')
@@ -1831,9 +2843,9 @@ class Interface():
         ploss = None
         if not hosts:
             hosts = self.hosts
-            self.textCanvas.insert(END,'\n\n*** Ping: testing ping reachability between hosts\n\n')
+            self.textCanvas.insert(END,'\n\n*** Ping: testing ping reachability between hosts\n\n','modif1')
         for node in hosts:
-            self.textCanvas.insert(END,str(node.name) + ' ' + '-> ')
+            self.textCanvas.insert(END,str(node.name) + ' ' + '-> ','police1')
             for dest in hosts:
                 if node != dest:
                     opts = ''
@@ -1847,7 +2859,7 @@ class Interface():
                             r = r'(\d+) packets transmitted, (\d+)( packets)? received'
                             m = re.search(r,result)
                             if m is None:
-                                self.textCanvas.insert(END,'*** Error: could not parse ping output: ' + str(result) + '\n')
+                                self.textCanvas.insert(END,'*** Error: could not parse ping output: ' + str(result) + '\n','police1')
                                 (sent,received)=(1,0)
                             else:
                                 (sent,received) = (int(m.group(1)),int(m.group(2)))
@@ -1855,41 +2867,25 @@ class Interface():
                         sent, received = 0, 0
                     packets += sent
                     if received > sent:
-                        self.textCanvas.insert(END,'*** Error: received too many packets')
-                        self.textCanvas.insert(INSERT,str(result))
+                        self.textCanvas.insert(END,'*** Error: received too many packets','police1')
+                        self.textCanvas.insert(INSERT,str(result),'police1')
                         node.cmdPrint('route')
                         exit(1)
                     lost += sent - received
                     if received :
-                        self.textCanvas.insert(INSERT,str(dest.name))
+                        self.textCanvas.insert(INSERT,str(dest.name),'police1')
                     else:
-                        self.textCanvas.insert(INSERT,str('X'))
+                        self.textCanvas.insert(INSERT,str('X'),'police1')
             self.textCanvas.insert(INSERT,str('\n'))
         if packets > 0:
             ploss = 100.0 * lost / packets
             received = packets - lost
-            self.textCanvas.insert(END,"*** Results: "+str(ploss)+' '+'dropped ('+str(received)+'/'+str(packets)+'received)\n')
+            self.textCanvas.insert(END,"*** Results: "+str(ploss)+' '+'dropped ('+str(received)+'/'+str(packets)+'received)\n','police1')
         else:
             ploss = 0
-            self.textCanvas.insert(END,"*** Warning: No packets sent\n")
+            self.textCanvas.insert(END,"*** Warning: No packets sent\n",'police1')
         self.textCanvas.config(state='disabled')
         return ploss
-
-    def linkInfo(self):
-        self.textCanvas.config(state='normal')
-        self.textCanvas.delete('1.0',END)
-        listlinks=[]
-        for link in self.links.keys():
-            if(self.links[link]['type'] == 'data'):
-                src=self.net.get(self.links[link]['src'])
-                dst=self.net.get(self.links[link]['dest'])
-                linkss=self.net.linksBetween(src,dst)
-                listlinks.append(linkss)
-        for link2 in listlinks:
-            self.textCanvas.insert(INSERT,link2[0].__str__())
-            self.textCanvas.insert(INSERT,link2[0].status())
-            self.textCanvas.insert(INSERT,'\n')
-        self.textCanvas.config(state='disabled')
 
     def create_buttons(self,window):
         abs=0;
@@ -1908,27 +2904,119 @@ class Interface():
         bouton2.place(x=str(abs),y=600)
 
     def create_buttons_performances(self,window):
-        helv36 = Font(family='Helvetica', size=10, weight='bold')
-        boutonLink=Button(window,width=5,height=2,bg='white',text='Links',font=helv36,command=self.linkInfo)
-        boutonLink.place(x='5',y='10')
-        boutonNet=Button(window,width=5,height=2,bg='white',text='Net',font=helv36,command=self.dumpNet)
-        boutonNet.place(x='5',y='70')
-        boutonIpa=Button(window,width=5,height=2,bg='white',text='ipa',font=helv36,command=self.commandIpa)
-        boutonIpa.place(x='5',y='130')
-        boutonPinghosts = Button(window,width=5,height=2,bg='white',text='ping hosts',font=helv36,command=self.pinghosts)
-        boutonPinghosts.place(x='5',y='190')
-        boutonPingpair = Button(window,width=5,height=2,bg='white',text='ping pair',font=helv36,command=self.pingpair)
-        boutonPingpair.place(x='5',y='250')
-        boutonNodes = Button(window,width=5,height=2,bg='white',text='Nodes',font=helv36,command=self.listNodes)
-        boutonNodes.place(x='5',y='310')
-        boutonIfconfig = Button(window,width=5,height=2,bg='white',text='Ifconfig',font=helv36,command=self.ifconfig)
-        boutonIfconfig.place(x='5',y='370')
-        boutonPingPacket = Button(window,width=5,height=2,bg='white',text='Ping Packet',font=helv36,command=self.pingPacket)
-        boutonPingPacket.place(x='5',y='430')
-        boutonIperf = Button(window,width=5,height=2,bg='white',text='Iperf',font=helv36,command=self.iperf)
-        boutonIperf.place(x='5',y='490')
-        boutonserver = Button(window,width=5,height=2,bg='white',text='serverOrclient',font=helv36,command=self.iperfserver)
+        helv36 = Font(family='Helvetica', size=12, weight='bold')
+        #boutonLink=Button(window,width=9,height=2,bg='white',text='Links',font=helv36,command=self.linkInfo)
+        #boutonLink.place(x='5',y='10')
+        boutonNet=Button(window,width=9,height=2,bg='white',text='Net',font=helv36,command=self.dumpNet)
+        boutonNet.place(x='5',y='10')
+        boutonIpa=Button(window,width=9,height=2,bg='white',text='Ipa',font=helv36,command=self.commandIpa)
+        boutonIpa.place(x='5',y='70')
+        boutonPinghosts = Button(window,width=9,height=2,bg='white',text='Connectivity',font=helv36,command=self.pinghosts)
+        boutonPinghosts.place(x='5',y='130')
+        boutonPingpair = Button(window,width=9,height=2,bg='white',text='Ping pair',font=helv36,command=self.pingpair)
+        boutonPingpair.place(x='5',y='190')
+        boutonNodes = Button(window,width=9,height=2,bg='white',text='Nodes',font=helv36,command=self.listNodes)
+        boutonNodes.place(x='5',y='250')
+        boutonIfconfig = Button(window,width=9,height=2,bg='white',text='Ifconfig',font=helv36,command=self.ifconfig)
+        boutonIfconfig.place(x='5',y='310')
+        boutonPingPacket = Button(window,width=9,height=2,bg='white',text='Ping packets',font=helv36,command=self.pingPacket)
+        boutonPingPacket.place(x='5',y='370')
+        #boutonIperf = Button(window,width=9,height=2,bg='white',text='Iperf',font=helv36,command=self.iperf)
+        #boutonIperf.place(x='5',y='490')
+        boutonPing = Button(window,width=9,height=2,bg='white',text='Ping',font=helv36,command=self.pinghost)
+        boutonPing.place(x='5',y='430')
+        self.boutonFinish = Button(window,width=9,height=2,bg='white',text='Finish Ping',font=helv36)
+        self.boutonFinish.place(x='5',y='490')
+        boutonserver = Button(window,width=9,height=2,bg='white',text='Server',font=helv36,command=self.iperfserver)
         boutonserver.place(x='5',y='550')
+        # boutonping = Button(window,width=9,height=2,bg='white',text='Ping',font=helv36,command=self.pinghost)
+        # boutonping.place(x='5',y='610')
+
+    def create_button_controleur(self,window):
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        bouton = Button(window,width=9,height=2,bg='white',text='restFirewall',font=helv36,command = self.launchFirewallThread)
+        bouton.place(x='5',y='10')
+        bouton_activate = Button(window,width=9,height=2,bg='white',text='Activation',font=helv36,command=self.activatefirewall)
+        bouton_activate.place(x='5',y='70')
+        # bouton_reinitialiser = Button(window,width=9,height=2,bg='white',text='Reset',command = self.reinitialiser)
+        # bouton_reinitialiser.place(x='5',y='130')
+        bouton_cleanup = Button(window,width=9,height=2,bg='white',text='Clean up',font=helv36,command = self.cleanUpFirewall)
+        bouton_cleanup.place(x='5',y='600')
+
+    def create_button_stp(self,window):
+        helv36 = Font(family='Helvetica', size=11, weight='bold')
+        bouton = Button(window,width=9,height=2,bg='white',text='Launch stp ',font=helv36,command = self.launchstp)
+        bouton.place(x='5',y='10')
+        bouton_tcpdump = Button(window,width=9,height=2,bg='white',text='Tcpdump',font=helv36,command = self.startTcpdump)
+        bouton_tcpdump.place(x='5',y='70')
+        bouton_cleanup = Button(window,width=9,height=2,bg='white',text='Clean up',font=helv36,command = self.cleanup)
+        bouton_cleanup.place(x='5',y='600')
+
+    def cleanup(self):
+        #self.processSTP.terminate()
+        self.processSTP.kill()
+        self.terminatedstp = False
+        self.textstp.delete('1.0',END)
+        self.textRequest.delete('1.0',END)
+
+    def launch_stp(self):
+         #p = subprocess.Popen(["ryu-manager","switchstp.py"], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+         myoutput = open('stp.txt','w+')
+         #x = subprocess.Popen(['ryu-manager','switchstp.py'],stdout=myoutput,stderr=myoutput, universal_newlines=True)
+         self.processSTP = subprocess.Popen(['ryu-manager','switchstp.py'],stdout=myoutput,stderr=myoutput, universal_newlines=True)
+         y = select.poll()
+         y.register(myoutput,select.POLLIN)
+
+         file = open('stp.txt','r')
+         #while True:
+         while self.terminatedstp:
+             if y.poll(1):
+                self.textstp.insert(INSERT,file.readline(),'color')
+             else:
+                 time.sleep(1)
+
+    def launchstp(self):
+        r = threading.Thread(target=self.launch_stp)
+        r.start()
+
+    def startTcpdump(self):
+        spanningWindow = spanningTree(self.window,self.nameswitch,self.textstp,self.textRequest,self.canvas_stp)
+        self.window.wait_window(spanningWindow.top)
+
+    def activatefirewall(self):
+        firewallwindow = firewallWindow(self.window,self.nameswitch,self.textcurl,self.textFirewall,self.links,self.name_host,self.canvas_controleur,self.textrules)
+        self.window.wait_window(firewallwindow.top)
+
+    def qos(self):
+        qoswindow = QOSwindow(self.window,self.nameswitch,self.name_host,self.textQOS,self.canvas_qos,self.textcommand,self.texterule)
+        self.window.wait_window(qoswindow.top)
+
+    def launchFirewall(self):
+        self.textFirewall.delete('1.0',END)
+        myoutput = open('output.txt','w+')
+        #p = subprocess.Popen(["ryu-manager","restfirewall.py"], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        self.processFirewall = subprocess.Popen(["ryu-manager","restfirewall.py"], stdout=myoutput, stderr=myoutput, universal_newlines=True)
+        y = select.poll()
+        y.register(myoutput,select.POLLIN)
+
+        file = open('output.txt','r')
+        #while True:
+        while self.terminatedFirewall :
+            if y.poll(1):
+               self.textFirewall.insert(INSERT,file.readline(),'color')
+            else:
+                time.sleep(1)
+
+    def launchFirewallThread(self):
+        r = threading.Thread(target=self.launchFirewall)
+        r.start()
+
+    def cleanUpFirewall(self):
+        self.processFirewall.kill()
+        self.terminatedFirewall = False
+        self.textcurl.delete('1.0',END)
+        self.textFirewall.delete('1.0',END)
+        self.textrules.delete('1.0',END)
 
     def iperfserver(self):
         iperfwindow = serverOrClient(self.window,self.name_host)
@@ -1937,6 +3025,10 @@ class Interface():
     def ifconfig(self):
         ifconfigwindow = ifconfigWindow(self.window,self.name_host,self.nameswitch,self.namecontroller,self.textCanvas,self.net)
         self.window.wait_window(ifconfigwindow.top)
+
+    def pinghost(self):
+        pingwindow = ping(self.window,self.name_host,self.textCanvas,self.boutonFinish)
+        self.window.wait_window(pingwindow.top)
 
     def pingpair(self):
         pingwindow= pingWindow(self.window,self.name_host,self.textCanvas)
@@ -1972,22 +3064,39 @@ class Interface():
             self.canvas1.delete(self.liens[i])
         self.buttons_canevas={}
         self.links={}
+        self.nameswitch={}
+        #self.name_switch=[]
+        self.name_host=[]
+        self.names=[]
+        self.namecontroller={}
         self.coordonnees={"i0":0,"j0":0,"i1":0,"j1":0}
         self.liens=[]
         self.itemToWidget={}
         self.widgetToItem={}
+        #self.source={}
+        self.hosts=[]
+        self.nameToItem={}
         self.switchNumber=0
         self.hostNumber=0
+        self.controllerNumber=0
+        self.champs={}
+        self.bridgedict={}
+        #self.nb_widget_canevas=0
         self.switchOptions={}
         self.hostOptions={}
+        self.itemToName={}
+        self.liens=[]
         self.nameToItem={}
         self.name_host={}
+        #self.list_buttons={}
+        #self.buttons_canevas={}
         self.controllerOptions={}
         self.legacySwitchOptions={}
         self.legacyRouterOptions={}
         self.itemToName={}
         self.names=[]
-        self.preferences={"dpctl": "","ipBase": "10.0.0.0/8","netflow": {"nflowAddId": "0","nflowTarget": "","nflowTimeout": "600"},"openFlowVersions": {"ovsOf10": "1","ovsOf11": "0","ovsOf12": "0","ovsOf13": "0"},"sflow" : {"sflowHeader": "128","sflowPolling": "30","sflowSampling": "400","sflowTarget": ""},"startCLI": "0","switchType": "ovs","terminalType": "xterm"}
+        #self.preferences={"dpctl": "","ipBase": "10.0.0.0/8","netflow": {"nflowAddId": "0","nflowTarget": "","nflowTimeout": "600"},"openFlowVersions": {"ovsOf10": 1,"ovsOf11": 0,"ovsOf12": 0,"ovsOf13": 0},"sflow" : {"sflowHeader": "128","sflowPolling": "30","sflowSampling": "400","sflowTarget": ""},"startCLI": "0","switchType": "ovs","terminalType": "xterm"}
+        self.preferences={"dpctl": "","ipBase": "10.0.0.0/8","netflow": {"nflowAddId":0,"nflowTarget":"","nflowTimeout": "600"},"openFlowVersions": {"ovsOf10":1,"ovsOf11":0,"ovsOf12":0,"ovsOf13":0},"sflow" : {"sflowHeader": "128","sflowPolling": "30","sflowSampling": "400","sflowTarget": ""},"startCLI":0,"switchType": "ovs","terminalType": "xterm"}
         self.openFlowVersions=[]
 
     def selectItem(self,item):
@@ -2179,7 +3288,7 @@ class Interface():
             newOptions = {'controllerType':ctrlwindow.result['controllerType'],'controllerProtocol':ctrlwindow.result['controllerProtocol']}
             if len(ctrlwindow.result['hostname']) > 0:
                 newOptions['hostname']= ctrlwindow.result['hostname']
-            if len(ctrlwindow.result['remotePort']) > 0:
+            if len(str(ctrlwindow.result['remotePort'])) > 0:
                 newOptions['remotePort']= ctrlwindow.result['remotePort']
             if len(ctrlwindow.result['remoteIP']) > 0:
                 newOptions['remoteIP']= ctrlwindow.result['remoteIP']
@@ -2217,11 +3326,287 @@ class Interface():
             if etat_bouton == 'disabled':
                 popup_menu=Menu(self.canvas1,tearoff=0)
                 popup_menu.add_command(label="List Bridge",command=self.listBridge)
+                popup_menu.add_command(label="Flow table",command=self.flowTable)
+                popup_menu.add_command(label="Bidirectionnal Flow",command=self.bidirectFlow)
+                popup_menu.add_command(label="Autorize arp requests",command=self.arprequest)
+                popup_menu.add_command(label="Drop connectivity",command=self.drop_connectivity)
+                popup_menu.add_command(label="Interfaces",command=self.showInterfaces)
+                popup_menu.add_command(label="Redirect Flow",command=self.redirectFlow)
+                popup_menu.add_command(label="Delete Flow",command=self.deleteFlows)
+                #popup_menu.add_command(label="Add Bridge",command=self.addBridge)
                 popup_menu.post(event.x_root,event.y_root)
                 return
         popup_menu=Menu(self.canvas1,tearoff=0)
         popup_menu.add_command(label="Switch Properties",command=self.switchdetails)
         popup_menu.post(event.x_root,event.y_root)
+
+    def placetextOncanvas(self,top):
+        helv36 = Font(family='Helvetica', size=15, weight='bold')
+        canvasRoot = Canvas(top,bg='slateGray1')
+        canvasRoot.pack(expand=True,fill='both')
+        label = Label(canvasRoot,text='Flow table',font=helv36)
+        label.pack()
+        canvas = Canvas(canvasRoot,width=1000,height=1000,bg='snow')
+        canvas.pack()
+        texte = Text(canvas,width=70,height=50)
+        scroll = Scrollbar(canvas,command=texte.yview)
+        texte.configure(yscrollcommand=scroll.set)
+        texte.config(state="normal")
+        texte.pack(side=LEFT)
+        scroll.pack(side=RIGHT,fill=Y)
+        return [texte,label]
+
+    def flowTable(self):
+        root = Toplevel()
+        root.geometry('700x500')
+        nameswitch = self.switchOptions[self.selectedNode]['nameSwitch']
+        switchNode = self.nameswitch[nameswitch]
+        [textswitch,label] = self.placetextOncanvas(root)
+        textswitch.insert(INSERT,switchNode.cmd('ovs-ofctl dump-flows ' + nameswitch))
+
+    def bidirectFlow(self):
+
+        helv36 = Font(family='Helvetica',size=10,weight='bold')
+        numbers = []
+        name = self.switchOptions[self.selectedNode]['nameSwitch']
+        hosts=[]
+
+        for i in range(1,self.hostNumber+1):
+            numbers.append(i)
+
+        for element in self.name_host.keys():
+            hosts.append(element)
+
+        root = Toplevel()
+        root.geometry('350x250')
+
+        labelTitle = Label(root,text='Adding bidirectional flow using MAC address',font=helv36)
+        labelTitle.place(x=5,y=10)
+
+        labelFirst=Label(root,text='Source',font=helv36)
+        labelFirst.place(x=5,y=40)
+
+        self.choosenhost.trace("w",self.hostchanged)
+        dropdownmenu = OptionMenu(root,self.choosenhost,*hosts)
+        dropdownmenu.place(x=5,y=70)
+
+        label=Label(root,text='Destination',font=helv36)
+        label.place(x=100,y=40)
+
+        self.choosenhost1.trace("w",self.hostchanged1)
+        dropdownmenu1 = OptionMenu(root,self.choosenhost1,*hosts)
+        dropdownmenu1.place(x=100,y=70)
+
+        labelNumber = Label(root,text='Output',font=helv36)
+        labelNumber.place(x=5,y=120)
+        self.number2.trace("w",self.changenumber2)
+        dropdownmenu2= OptionMenu(root,self.number2,*numbers)
+        dropdownmenu2.place(x=100,y=120)
+
+        labelFlow = Label(root,text='Adding a flow to let ARP requests',font=helv36)
+        labelFlow.place(x=5,y=150)
+        checkbutton=Checkbutton(root,variable=self.valuearp)
+        checkbutton.place(x=240,y=150)
+        bouton = Button(root,text='OK',command=partial(self.bidirFlow,root,name))
+        bouton.place(x=5,y=180)
+
+    #'ovs-ofctl add-flow ' + name + ' in_port='+self.listPort1[0]+',actions=output:'+self.listPort2[0]
+
+    def arprequest(self):
+        name = self.switchOptions[self.selectedNode]['nameSwitch']
+        switchNode=self.nameswitch[name]
+        #'ovs-ofctl add-flow '+ name + 'dl_type=0x806,nw_proto=1,actions=flood'
+        print('ovs-ofctl add-flow '+ name + ' dl_type=0x806,nw_proto=1,actions=flood')
+        result=switchNode.cmd('ovs-ofctl add-flow '+ name + ' dl_type=0x806,nw_proto=1,actions=flood')
+        #sh ovs-ofctl add-flow s1 dl_type=0x806,nw_proto=1,actions=flood
+
+    def bidirFlow(self,root,name):
+        root.destroy()
+        switchNode = self.nameswitch[name]
+        print(switchNode)
+        node1 = self.name_host[self.choosenhosts[0]]
+        print(node1)
+        node2 = self.name_host[self.choosenhosts[1]]
+        print(node2)
+        print('ovs-ofctl add-flow ' + name + ' dl_src=' + node1.MAC() + ',dl_dst='+ node2.MAC()+',actions=output:'+self.outputs[0])
+        result=switchNode.cmd('ovs-ofctl add-flow ' + name + ' dl_src=' + node1.MAC() + ',dl_dst='+ node2.MAC() +',actions=output:'+self.outputs[0])
+
+    def changenumber2(self,*args):
+        self.outputs[0]= self.number2.get()
+
+    def hostchanged(self,*args):
+        self.choosenhosts[0]=self.choosenhost.get()
+
+    def hostchanged1(self,*args):
+        self.choosenhosts[1]=self.choosenhost1.get()
+
+    def drop_connectivity(self):
+        #sh ovs-ofctl add-flow s1 priority=40000,hard_timeout=30,actions=drop
+        helv36 = Font(family='Helvetica',size=12,weight='bold')
+        root = Toplevel()
+        root.geometry('200x150')
+
+        priority = StringVar()
+        priority.set('40000')
+
+        timeout = StringVar()
+        timeout.set('30')
+
+        #title
+        labelTitle = Label(root,text='Drop connectivity',font=helv36)
+        labelTitle.place(x='5',y='10')
+
+        #Priority
+        labelPriority = Label(root,text='Priority')
+        labelPriority.place(x=5,y=40)
+        entryPriority = Entry(root,width=10,textvariable=priority)
+        entryPriority.place(x=100,y=40)
+        self.champs['priority']=entryPriority
+
+        #hard_timeout
+        labelTimeout = Label(root,text='hard_timeout')
+        labelTimeout.place(x=5,y=70)
+        entryTimeout = Entry(root,width=10,textvariable=timeout)
+        entryTimeout.place(x=100,y=70)
+        self.champs['timeout']=entryTimeout
+
+        #selected switch
+        name = self.switchOptions[self.selectedNode]['nameSwitch']
+
+        bouton = Button(root,text= 'OK',command = partial(self.drop,root,name))
+        bouton.place(x=50,y=100)
+
+    def drop(self,root,name):
+        switchNode = self.nameswitch[name]
+        print(switchNode)
+        print('\n')
+        print('entryPriority:' + self.champs['priority'].get() + '\n')
+        print('timeout:' + self.champs['timeout'].get() + '\n')
+        result = switchNode.cmd('ovs-ofctl add-flow ' + name + ' priority=' +self.champs['priority'].get()+',hard_timeout='+self.champs['timeout'].get()+',actions=drop')
+        root.destroy()
+
+    def showInterfaces(self):
+        #sh ovs-ofctl show s1
+        root=Toplevel()
+        root.geometry('700x500')
+        nameswitch = self.switchOptions[self.selectedNode]['nameSwitch']
+        switchNode = self.nameswitch[nameswitch]
+        [textswitch,label] = self.placetextOncanvas(root)
+        label.config(text = nameswitch + "'s interfaces")
+        textswitch.insert(INSERT,switchNode.cmd('ovs-ofctl show ' + nameswitch))
+
+    def changePort1(self,*args):
+        self.listPort1[0]=self.portNumber1.get()
+
+    def changePort2(self,*args):
+        self.listPort2[0]=self.portNumber2.get()
+
+    def redirectFlow(self):
+        #direct incoming traffic from port1 to port2
+        listnumber = []
+        for i in range(0,11):
+            listnumber.append(i)
+        root=Toplevel()
+        root.geometry('400x300')
+        labelTitle = Label(root,text='Direct incoming traffic from a port to another one')
+        labelTitle.place(x=5,y=10)
+        label1 = Label(root,text='Choose the first port number')
+        label1.place(x=5,y=40)
+
+        self.portNumber1.trace("w",self.changePort1)
+        dropdownmenu=OptionMenu(root,self.portNumber1,*listnumber)
+        dropdownmenu.place(x=250,y=40)
+        label2 = Label(root,text='Choose the second port number')
+        label2.place(x=5,y=70)
+
+        self.portNumber2.trace("w",self.changePort2)
+        dropdownmenu1=OptionMenu(root,self.portNumber2,*listnumber)
+        dropdownmenu1.place(x=250,y=70)
+
+        name = self.switchOptions[self.selectedNode]['nameSwitch']
+        bouton = Button(root,text='OK',command=partial(self.redirection,root,name))
+        bouton.place(x=5,y=110)
+
+    def redirection(self,root,name):
+        #window=Toplevel()
+        #window.geometry('650x500')
+        print('Portnumber1:' + self.listPort1[0] + '\n')
+        print('PortNumber2:' + self.listPort2[0] + '\n')
+        switchNode = self.nameswitch[name]
+        #textswitch = self.placetextOncanvas(window)
+        #textswitch.insert(INSERT,switchNode.cmd('ovs-ofctl add-flow ' + name + ' in_port='+self.listPort1[0]+',actions=output:'+self.listPort2[0]))
+        result = switchNode.cmd('ovs-ofctl add-flow ' + name + ' in_port='+self.listPort1[0]+',actions=output:'+self.listPort2[0])
+        root.destroy()
+
+    def deleteFlows(self):
+        # remove the flows existing on the switch
+        #root = Toplevel()
+        nameswitch = self.switchOptions[self.selectedNode]['nameSwitch']
+        switchNode = self.nameswitch[nameswitch]
+        #textswitch = self.placetextOncanvas(root)
+        #textswitch.insert(INSERT,switchNode.cmd('ovs-ofctl del-flows ' + nameswitch))
+        result = switchNode.cmd('ovs-ofctl del-flows ' + nameswitch)
+
+    # def addBridge(self):
+    #     #ovs-vsctl add-br dp0
+    #     root = Toplevel()
+    #     root.geometry('300x300')
+    #     name = self.switchOptions[self.selectedNode]['nameSwitch']
+    #     labelTitle=Label(root,text='add bridge to ' + nameswitch)
+    #     labelTitle.place(x='5',y='10')
+    #     labelName=Label(root,text='Bridge name')
+    #     labelName.place(x=5,y=40)
+    #     entry = Entry(root,width=10)
+    #     entry.place(x=100,y=40)
+    #     self.bridgedict[name]=[]
+    #     bouton = Button(root,text='OK',command=partial(self.okaddBridge,root,name,entry)) #root + nom du switch
+    #     bouton.place(x=50,y=70)
+    #
+    #
+    # def okaddBridge(self,root,name,entry):
+    #     window=Toplevel()
+    #     window.geometry('500x500')
+    #     self.bridgedict[name].append(entry.get())
+    #     switchNode = self.nameswitch[name]
+    #     textswitch = self.placetextOncanvas(window)
+    #     textswitch.insert(INSERT,switchNode.cmd('ovs-vsctl add-br ' + entry.get()))
+    #     root.destroy()
+    #
+    # def changeBridge(self,*args):
+    #     self.choosenBridge[0]=self.bridge.get()
+    #
+    # def delBridge(self):
+    #     root = Toplevel()
+    #     root.geometry('300x300')
+    #
+    #     liste =[]
+    #     name = self.switchOptions[self.selectedNode]['nameSwitch']
+    #     for element in self.bridgedict.keys():
+    #         if(element == name):
+    #             liste.append(self.bridgedict[element])
+    #
+    #     labelTitle=Label(root,text='Delete bridge')
+    #     labelTitle.place(x='5',y='10')
+    #
+    #     # Choosing a bridge name
+    #     label = Label(root,text="Choose a bridge's name")
+    #     label.place(x=5,y=40)
+    #     self.bridge.trace("w",self.changeBridge)
+    #     dropdownmenu = OptionMenu(root,self.bridge,*liste)
+    #     dropdownmenu.place(x=200,y=40)
+    #
+    #     bouton = Button(root,text='OK',command=partial(self.deleteBridge,root,name))
+    #     bouton.place(x=50,y=70)
+    #
+    # def deleteBridge(self,root,name):
+    #     #ovs-vsctl del-br dp0
+    #     window=Toplevel()
+    #     window.geometry('500x500')
+    #     self.bridgedict[name].remove(self.choosenBridge[0])
+    #     switchNode = self.nameswitch[name]
+    #     textswitch = self.placetextOncanvas(window)
+    #     textswitch.insert(INSERT,switchNode.cmd('ovs-vsctl del-br ' + self.choosenBridge[0]))
+    #     root.destroy()
 
     def popup_legacyswitch(self,event):
         item=event.widget
@@ -2274,218 +3659,6 @@ class Interface():
     def ovsShow(_ignore=None):
         call(["xterm -T 'OVS Summary' -sb -sl 2000 -e 'ovs-vsctl show; read -p \"Press Enter to close\"' &"],shell=True)
 
-
-    def node_info(self):
-        global node
-        root=Toplevel()
-        root.geometry('380x170')
-        helv36 = Font(family='Helvetica', size=10, weight='bold')
-        label=Label(root,text='Nodes informations',font=helv36)
-        label.place(x=135,y=0)
-        label1=Label(root,text='Choose node',font=helv36)
-        label1.place(x=155,y=30)
-        link_names=()
-        names = tuple(self.names)
-        for link in self.links.keys():
-            info_link=('Link between ' + str(self.links[link]['src']) + ' and ' + str(self.links[link]['dest']),)
-            link_names=link_names+info_link
-
-        nodes_links = names+link_names
-        menuwidth = len(max(nodes_links,key=len))
-        node=[names[0]]
-        global varname
-        varname=StringVar()
-        varname.set(names[0])
-        varname.trace("w",self.changeNode)
-        dropdownmenu=OptionMenu(root,varname,*nodes_links)
-        dropdownmenu.config(width=menuwidth)
-        dropdownmenu.grid()
-        dropdownmenu.place(x=95,y=60)
-        bouton = Button(root,text='OK',command=self.node_info1)
-        bouton.place(x=170,y=110)
-
-    def node_info1(self):
-        #cas switch
-        root=Toplevel()
-        text1=Text(root,height=200,width=200)
-        text1.config(state="normal")
-
-        for switch in self.switchOptions.keys():
-            item=self.widgetToItem[switch]
-            name_node=self.itemToName[item]
-            if(node[0]==name_node):
-                text1.insert(INSERT,'Switch Name : ' + self.switchOptions[switch]['options']['hostname']+'\n')
-                text1.insert(INSERT,'Switch Type : ' + self.switchOptions[switch]['options']['switchType']+'\n')
-
-                if(self.switchOptions[switch]['options']['sflow'] == 0 ):
-                    text1.insert(INSERT,'sFlow : Not Checked ' + '\n')
-                else:
-                    text1.insert(INSERT,'sFlow : Checked ' + '\n')
-
-                if(self.switchOptions[switch]['options']['netflow'] == 0 ):
-                    text1.insert(INSERT,'netFlow : Not Checked ' + '\n')
-                else:
-                    text1.insert(INSERT,'netFlow : Checked ' + '\n')
-
-                if(self.switchOptions[switch]['options']['controllers'] != [] ):
-                    text1.insert(INSERT,'Controllers : ')
-                    text1.insert(INSERT,self.switchOptions[switch]['options']['controllers'])
-                    text1.insert(INSERT,'\n')
-
-                if(self.switchOptions[switch]['options']['switchIP']!=''):
-                    text1.insert(INSERT,'IP Address : ' + self.switchOptions[switch]['options']['switchIP']+'\n')
-
-                if(self.switchOptions[switch]['options']['dpid']!=''):
-                    text1.insert(INSERT,'dpid : ' + self.switchOptions[switch]['options']['dpid']+'\n')
-
-                if(self.switchOptions[switch]['options']['dpctl']!=''):
-                    text1.insert(INSERT,'dpctl : ' + self.switchOptions[switch]['options']['dpctl']+'\n')
-
-                if(self.switchOptions[switch]['options']['startCommand']!=''):
-                    text1.insert(INSERT,'start Command : ' + self.switchOptions[switch]['options']['startCommand']+'\n')
-
-                if(self.switchOptions[switch]['options']['stopCommand']!=''):
-                    text1.insert(INSERT,'stop Command : ' + self.switchOptions[switch]['options']['stopCommand']+'\n')
-
-                if(self.switchOptions[switch]['options']['externalInterfaces'] != [] ):
-                    text1.insert(INSERT,'External Interfaces : ')
-                    text1.insert(INSERT,self.switchOptions[switch]['options']['externalInterfaces'])
-                    text1.insert(INSERT,'\n')
-
-                text1.config(state='disabled')
-                text1.pack()
-                return
-
-        #cas host
-        for host in self.hostOptions.keys():
-            item=self.widgetToItem[host]
-            name_node=self.itemToName[item]
-            if(node[0]==name_node):
-                #print(self.hostOptions[host])
-                text1.insert(INSERT,'host Number : ' + str(self.hostOptions[host]['numhost'])+'\n')
-                text1.insert(INSERT,'hostname : ' + self.hostOptions[host]['hostname']+'\n')
-                text1.insert(INSERT,'Sched : ' + self.hostOptions[host]['options']['sched']+'\n')
-                #print(self.hostOptions[host]['options']['cpu'])
-
-                if(self.hostOptions[host]['options']['cpu']!=''):
-                     #print('we are in cpu')
-                     text1.insert(INSERT,'CPU : ' + self.hostOptions[host]['options']['cpu']+'\n')
-
-                if(self.hostOptions[host]['options']['ip']!=''):
-                    #print('we are in ip')
-                    text1.insert(INSERT,'IP Address : ' + self.hostOptions[host]['options']['ip']+'\n')
-
-                if(self.hostOptions[host]['options']['defaultRoute']!=''):
-                    #print('we are in default route')
-                    text1.insert(INSERT,'Default Route : ' + self.hostOptions[host]['options']['defaultRoute']+'\n')
-
-                if(self.hostOptions[host]['options']['cores']!=''):
-                    #print('we are in cores')
-                    text1.insert(INSERT,'Cores : ' + self.hostOptions[host]['options']['cores']+'\n')
-
-                if(self.hostOptions[host]['options']['startCommand']!=''):
-                    #print('we are in start command')
-                    text1.insert(INSERT,'start Command : ' + self.hostOptions[host]['options']['startCommand']+'\n')
-
-                if(self.hostOptions[host]['options']['stopCommand']!=''):
-                    #print('we are in stop command')
-                    text1.insert(INSERT,'stop Command : ' + self.hostOptions[host]['options']['stopCommand']+'\n')
-
-                if(self.hostOptions[host]['options']['vlanInterfaces']!=[]):
-                    #print('we are in vlan interface')
-                    text1.insert(INSERT,'VLAN Interfaces : ')
-                    text1.insert(INSERT,self.hostOptions[host]['options']['vlanInterfaces'])
-                    text1.insert(INSERT,'\n')
-
-                if(self.hostOptions[host]['options']['privateDirectory']!=[]):
-                    #print('we are in private directories')
-                    text1.insert(INSERT,'Private Directories : ')
-                    text1.insert(INSERT,self.hostOptions[host]['options']['privateDirectory'])
-                    text1.insert(INSERT,'\n')
-
-                if(self.hostOptions[host]['options']['externalInterfaces']!=[]):
-                    #print('we are in external interfaces')
-                    text1.insert(INSERT,'External Interfaces : ')
-                    text1.insert(INSERT,self.hostOptions[host]['options']['externalInterfaces'])
-                    text1.insert(INSERT,'\n')
-
-                text1.config(state='disabled')
-                text1.pack()
-                return
-
-        #cas Controller
-        for controller in self.controllerOptions.keys():
-            item=self.widgetToItem[controller]
-            name_node=self.itemToName[item]
-            if(node[0]==name_node):
-                #text1.insert(INSERT,self.controllerOptions[controller])
-                text1.insert(INSERT,'Controller Name : ' + str(self.controllerOptions[controller]['hostname'])+'\n')
-                text1.insert(INSERT,'Remote Port : ' + str(self.controllerOptions[controller]['options']['remotePort'])+'\n')
-                text1.insert(INSERT,'Controller Protocol : ' + str(self.controllerOptions[controller]['options']['controllerProtocol'])+'\n')
-                text1.insert(INSERT,'Remote IP : ' + str(self.controllerOptions[controller]['options']['remoteIP'])+'\n')
-                text1.insert(INSERT,'Controller Type : ' + str(self.controllerOptions[controller]['options']['controllerType'])+'\n')
-                text1.config(state='disabled')
-                text1.pack()
-                return
-
-        #cas legacyswitch
-        for lswitch in self.legacySwitchOptions.keys():
-            item=self.widgetToItem[lswitch]
-            name_node=self.itemToName[item]
-            if(node[0]==name_node):
-                text1.insert(INSERT,'Legacy Switch Name : ' + self.legacySwitchOptions[lswitch]['name'] + '\n')
-                text1.insert(INSERT,'Legacy Switch Number : ' + str(self.legacySwitchOptions[lswitch]['number']) + '\n')
-                text1.insert(INSERT,'Switch Type : ' + self.legacySwitchOptions[lswitch]['options']['switchType']+'\n')
-                text1.config(state='disabled')
-                text1.pack()
-                return
-
-        #cas lrouter
-        for lrouter in self.legacyRouterOptions.keys():
-            item=self.widgetToItem[lrouter]
-            name_node=self.itemToName[item]
-            if(node[0]==name_node):
-                text1.insert(INSERT,'Legacy Router Name : ' + self.legacyRouterOptions[lrouter]['name'] + '\n')
-                text1.insert(INSERT,'Legacy Router Number : ' + str(self.legacyRouterOptions[lrouter]['number']) + '\n')
-                text1.insert(INSERT,'Switch Type : ' + self.legacyRouterOptions[lrouter]['options']['switchType']+'\n')
-                text1.config(state='disabled')
-                text1.pack()
-                return
-
-        for link in self.links.keys():
-            #print('self.links')
-            #print(self.links)
-            link_info = 'Link between ' + str(self.links[link]['src']) + ' and ' + str(self.links[link]['dest'])
-            if(node[0]==link_info):
-                #print('we are in self.links.keys')
-                text1.insert(INSERT,"Link source : " + str(self.links[link]['src']) + '\n')
-                text1.insert(INSERT,"Link destination : " + str(self.links[link]['dest']) + '\n')
-                text1.insert(INSERT,"Link type : " + str(self.links[link]['type']) + '\n')
-
-                if(self.links[link]['type'] == 'data' and self.links[link]['options'] != {} and self.links[link]['options']!= None):
-                    if('loss' in self.links[link]['options'].keys()):
-                        text1.insert(INSERT,'Loss : ' + str(self.links[link]['options']['loss']) + '\n')
-
-                    if('jitter' in self.links[link]['options'].keys()):
-                        text1.insert(INSERT,'Jitter : ' + str(self.links[link]['options']['jitter']) + '\n')
-
-                    if('speedup' in self.links[link]['options'].keys()):
-                        text1.insert(INSERT,'Speedup : ' + str(self.links[link]['options']['speedup']) + '\n')
-
-                    if('delay' in self.links[link]['options'].keys()):
-                        text1.insert(INSERT,'Delay : ' + str(self.links[link]['options']['delay'])+ '\n')
-
-                    if('bw' in self.links[link]['options'].keys()):
-                        text1.insert(INSERT,'Bandwidth : ' + str(self.links[link]['options']['bw'])+ '\n')
-
-                    if('max_queue_size' in self.links[link]['options'].keys()):
-                        text1.insert(INSERT,'Max queue size : ' + str(self.links[link]['options']['max_queue_size'])+ '\n')
-
-                text1.config(state='disabled')
-                text1.pack()
-                return
-
-
     #Placer un bouton sur le canevas
     def canvasHandle(self,event):
         x1=event.x
@@ -2501,7 +3674,7 @@ class Interface():
             #self.switchOptions[bouton1]['controllers']=[]
             #self.switchOptions[bouton1]['options']={"controllers": [],"hostname": name_switch,"nodenum":self.switchNumber,"switchType":"Default",'stopCommand':'','sflow':0,'switchIP':'','dpid':'','dpctl':'','startCommand':'','netflow':0,'externalInterfaces':[]}
             self.switchOptions[bouton1]['options']={"controllers": [],"hostname": name_switch,"nodeNum":self.switchNumber,"switchType":"Default"}
-            self.name_switch.append(name_switch)
+            #self.name_switch.append(name_switch)
             #id1=self.canvas.create_window((x1,y1),anchor='center',window=bouton1,tags='Switch')
             id1=self.canvas1.create_window((x1,y1),anchor='center',window=bouton1,tags='Switch')
             self.widgetToItem[bouton1]=id1
@@ -2509,7 +3682,7 @@ class Interface():
             self.itemToName[id1]=name_switch
             self.buttons_canevas[name_switch]=bouton1
             self.make_draggable_switch(self.buttons_canevas[name_switch])
-            self.nb_widget_canevas+=1
+            #self.nb_widget_canevas+=1
             self.list_buttons['Switch'].config(relief="raised")
             self.names.append(name_switch)
             self.activeButton=None
@@ -2534,7 +3707,7 @@ class Interface():
             self.itemToWidget[id2]=bouton2
             self.buttons_canevas[name_host]=bouton2
             self.make_draggable_host(self.buttons_canevas[name_host])
-            self.nb_widget_canevas+=1
+            #self.nb_widget_canevas+=1
             self.list_buttons['Host'].config(relief="raised")
             self.names.append(name_host)
             self.activeButton=None
@@ -2554,7 +3727,7 @@ class Interface():
             self.itemToName[id3]=name_controller
             self.buttons_canevas[name_controller]=bouton3
             self.make_draggable_controller(self.buttons_canevas[name_controller])
-            self.nb_widget_canevas+=1
+            #self.nb_widget_canevas+=1
             self.list_buttons['Controller'].config(relief="raised")
             self.names.append(name_controller)
             self.activeButton=None
@@ -2573,7 +3746,7 @@ class Interface():
             self.itemToWidget[id4]=bouton4
             self.names.append(name_legacySwitch)
             self.make_draggable_legacySwitch(bouton4)
-            self.nb_widget_canevas+=1
+            #self.nb_widget_canevas+=1
             self.list_buttons['LegacySwitch'].config(relief='raised')
             self.activeButton=None
         elif(self.activeButton == 'LegacyRouter'):
@@ -2592,7 +3765,7 @@ class Interface():
             self.itemToWidget[id5]=bouton5
             self.names.append(name_legacyRouter)
             self.make_draggable_legacyRouter(bouton5)
-            self.nb_widget_canevas+=1
+            #self.nb_widget_canevas+=1
             self.list_buttons['LegacyRouter'].config(relief='raised')
             self.activeButton=None
 
@@ -2877,7 +4050,7 @@ class Interface():
         #self.liens.append(self.link)
         #self.DataLinkBindings()
         self.linkWidget=w
-        self.source[w]=self.link
+        #self.source[w]=self.link
 
     def DataLinkBindings(self):
 
@@ -2937,7 +4110,7 @@ class Interface():
 
         if(dest1 == None):
             self.canvas1.delete( self.link )
-            del self.source[src]
+            #del self.source[src]
             del self.links[self.link]
             return
             #self.link=None
@@ -2998,9 +4171,9 @@ class Interface():
             controller_name=self.itemToName[target]
             switchoptions=self.switchOptions[src]['options']
             switchoptions['controllers'].append(controller_name)
-            print('finishlink')
-            print(self.switchOptions)
-            print('\n')
+            #print('finishlink')
+            #print(self.switchOptions)
+            #print('\n')
         self.link=None
         self.linkWidget=None
 
@@ -3445,9 +4618,10 @@ class Interface():
 
 def main():
     fenetre= Tk()
-    fenetre.title('New Miniedit')
+    fenetre.title('Netview')
     fenetre['bg']="white"
-    fenetre.geometry("1000x1000")
+    #fenetre.geometry("1000x1000")
+    fenetre.geometry('1500x1500')
     interface = Interface(fenetre)
     fenetre.mainloop()
 
